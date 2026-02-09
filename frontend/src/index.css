@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #FF4B3A;
+  --color-secondary: #2D2D2D;
+  --color-dark: #121212;
+  --color-light: #F5F5F5;
+  --font-sans: Inter, sans-serif;
+  --font-heading: Outfit, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-dark text-light font-sans;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
