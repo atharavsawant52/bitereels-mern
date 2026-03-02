@@ -13,9 +13,10 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 const io = new Server(server, {
     cors: {
-        origin: 'http://localhost:5173',
+        origin: clientUrl,
         credentials: true
     }
 });
@@ -30,7 +31,7 @@ app.use(helmet({
     crossOriginResourcePolicy: false,
 }));
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: clientUrl,
     credentials: true
 }));
 
@@ -60,16 +61,22 @@ const restaurantRoutes = require('./routes/restaurantRoutes');
 const reelRoutes = require('./routes/reelRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const foodRoutes = require('./routes/foodRoutes');
 const userRoutes = require('./routes/userRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const menuRoutes = require('./routes/menuRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/reels', reelRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/payment', paymentRoutes);
 app.use('/api/foods', foodRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/menu', menuRoutes);
 
 app.get('/', (req, res) => {
     res.send('BiteReels API is running...');
@@ -80,6 +87,7 @@ app.use((err, req, res, next) => {
     const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
     res.status(statusCode);
     res.json({
+        success: false,
         message: err.message,
         stack: process.env.NODE_ENV === 'production' ? null : err.stack,
     });

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { FaHeart, FaStore, FaShoppingCart, FaPlay } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import api from '../api/client';
 
 import CommentModal from './CommentModal';
 
@@ -13,6 +14,7 @@ const ReelCard = ({ reel }) => {
     const [following, setFollowing] = useState(false);
     const [showComments, setShowComments] = useState(false);
     const { user } = useAuth();
+    const navigate = useNavigate();
 
     useEffect(() => {
         if (user) {
@@ -72,7 +74,7 @@ const ReelCard = ({ reel }) => {
             const headers = getAuthHeaders();
             if (!headers) return alert("Please login first");
 
-            await axios.put(`http://localhost:5000/api/reels/${reel._id}/like`, {}, { headers });
+            await api.put(`/api/reels/${reel._id}/like`, {}, { headers });
 
             setLiked(!liked);
             setLikesCount(prev => liked ? prev - 1 : prev + 1);
@@ -89,7 +91,7 @@ const ReelCard = ({ reel }) => {
             const restaurantId = reel.restaurant?._id;
             if (!restaurantId) return;
 
-            await axios.put(`http://localhost:5000/api/users/${restaurantId}/follow`, {}, { headers });
+            await api.put(`/api/users/${restaurantId}/follow`, {}, { headers });
 
             setFollowing(!following);
         } catch (error) {
@@ -108,8 +110,8 @@ const ReelCard = ({ reel }) => {
             const headers = getAuthHeaders();
             if (!headers) return alert("Please login first");
             
-            const response = await axios.post('http://localhost:5000/api/cart', {
-                foodItemId: reel.foodItem?._id,
+            const response = await api.post('/api/cart', {
+                reelId: reel._id,
                 quantity: 1
             }, { headers });
             
@@ -128,7 +130,7 @@ const ReelCard = ({ reel }) => {
             {/* Video Player */}
             <video
                 ref={videoRef}
-                src={`http://localhost:5000${reel.videoUrl}`}
+                src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000')}${reel.videoUrl}`}
                 className="h-full w-full object-cover"
                 loop
                 muted={false} 
@@ -179,14 +181,16 @@ const ReelCard = ({ reel }) => {
                 <div className="flex items-center gap-3 mb-3">
                     <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-yellow-400 to-purple-600 p-[2px] shadow-lg">
                         <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
-                             {/* Ideally fetch restaurant image, fallback to icon */}
                              <FaStore className="text-xs text-gray-300" />
                         </div>
                     </div>
-                    <span className="font-bold text-sm tracking-wide hover:underline cursor-pointer drop-shadow-md">
+                    <span
+                        className="font-bold text-sm tracking-wide hover:underline cursor-pointer drop-shadow-md"
+                        onClick={() => navigate(`/restaurant/${reel.restaurant?._id}`)}
+                    >
                         {reel.restaurant?.restaurantDetails?.restaurantName || reel.restaurant?.username}
                     </span>
-                    <button 
+                    <button
                         onClick={handleFollow}
                         className={`border border-white/60 rounded-lg px-3 py-1 text-[11px] font-semibold backdrop-blur-md transition-colors ${following ? 'bg-white text-black' : 'bg-black/20 text-white hover:bg-white/20'}`}
                     >
@@ -196,25 +200,15 @@ const ReelCard = ({ reel }) => {
                 
                 {/* Caption / Description */}
                 <div className="mb-4">
-                    <h3 className="text-lg font-bold mb-1 drop-shadow-md leading-tight">{reel.title || reel.foodItem?.name}</h3>
-                    <p className="text-primary font-bold text-lg mb-2 shadow-black drop-shadow-md">₹{reel.price || reel.foodItem?.price}</p>
+                    <h3 className="text-lg font-bold mb-1 drop-shadow-md leading-tight">{reel.title}</h3>
+                    <p className="text-primary font-bold text-lg mb-2 shadow-black drop-shadow-md">₹{reel.price}</p>
                     <div className="bg-gradient-to-r from-black/40 to-transparent p-2 rounded-lg backdrop-blur-[2px] inline-block max-w-[90%]">
                         <p className="text-sm text-gray-100 font-medium leading-normal line-clamp-3">
-                            {reel.description || reel.caption}
+                            {reel.description}
                         </p>
                     </div>
                 </div>
-                
-                {/* Audio Tag */}
-                 <div className="flex items-center gap-2 opacity-90 mb-2">
-                    <div className="flex gap-2 items-center px-3 py-1 bg-black/30 rounded-full backdrop-blur-md border border-white/10">
-                        <div className="w-3 h-3 flex items-center justify-center">
-                            <span className="animate-pulse">🎵</span> 
-                        </div>
-                        <span className="text-xs font-medium truncate max-w-[150px]">Original Audio •  {reel.restaurant?.restaurantDetails?.restaurantName}</span>
-                    </div>
-                </div>
-            </div>
+        </div>
 
             {!isPlaying && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">

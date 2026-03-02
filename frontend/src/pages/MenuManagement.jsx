@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { FaTrash, FaEdit, FaPlus } from 'react-icons/fa';
+import api from '../api/client';
 
 const MenuManagement = () => {
     const [foodItems, setFoodItems] = useState([]);
@@ -18,14 +18,7 @@ const MenuManagement = () => {
 
     const fetchMenu = async () => {
         try {
-            const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-            const token = userInfo?.token;
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            };
-            const { data } = await axios.get('http://localhost:5000/api/foods/my', config);
+            const { data } = await api.get('/api/foods/my');
             setFoodItems(data);
             setLoading(false);
         } catch (error) {
@@ -41,21 +34,13 @@ const MenuManagement = () => {
     const handleAddItem = async (e) => {
         e.preventDefault();
         try {
-            const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-            const token = userInfo?.token;
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            };
-            
-            await axios.post('http://localhost:5000/api/foods', {
+            await api.post('/api/foods', {
                 name: newItemName,
                 price: Number(newItemPrice),
                 description: newItemDesc,
                 category: newItemCategory,
                 images: [] // Simplify for now
-            }, config);
+            });
 
             setShowModal(false);
             setNewItemName('');
@@ -73,14 +58,7 @@ const MenuManagement = () => {
         if (!window.confirm('Are you sure you want to delete this item?')) return;
         
         try {
-            const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-            const token = userInfo?.token;
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            };
-            await axios.delete(`http://localhost:5000/api/foods/${id}`, config);
+            await api.delete(`/api/foods/${id}`);
             fetchMenu();
         } catch (error) {
             console.error('Error deleting item:', error);

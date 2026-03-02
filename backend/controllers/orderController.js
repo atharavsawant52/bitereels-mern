@@ -1,5 +1,7 @@
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
+const User = require('../models/User');
+const { createNotification } = require('./notificationController');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -10,36 +12,111 @@ const addOrderItems = async (req, res) => {
             restaurant,
             items,
             totalAmount,
-            shippingAddress,
             paymentMethod
         } = req.body;
 
+        console.log("Creating order for user ID:", req.user._id);
+
+        // Fetch user with addresses
+        const currentUser = await User.findById(req.user._id);
+
+        // ── Address validation ────────────────────────────────────────────────
+        if (!currentUser.defaultAddress) {
+            return res.status(400).json({
+                success: false,
+                requiresAddress: true,
+                message: 'Please add and select a default delivery address before ordering.'
+            });
+        }
+
+        // Find the default address subdocument
+        const shippingAddress = currentUser.addresses.id(currentUser.defaultAddress);
+        if (!shippingAddress) {
+            return res.status(400).json({
+                success: false,
+                requiresAddress: true,
+                message: 'Default address not found. Please set a valid delivery address.'
+            });
+        }
+
         if (!restaurant) {
-            res.status(400);
-            throw new Error('Restaurant ID is required');
+            return res.status(400).json({ message: 'Restaurant ID is required' });
         }
 
         if (!items || items.length === 0) {
-            res.status(400);
-            throw new Error('No order items');
+            return res.status(400).json({ message: 'No order items' });
         }
 
-        if (!shippingAddress) {
-            res.status(400);
-            throw new Error('Shipping address is required');
+        // ── Restaurant Consistency Validation ─────────────────────────────────
+        // Extract restaurant ID from items and verify they all match the intended restaurant
+        const Reel = require('../models/Reel');
+        const FoodItem = require('../models/FoodItem');
+
+        for (const item of items) {
+            let itemRestaurantId;
+            if (item.reel) {
+                const reel = await Reel.findById(item.reel);
+                itemRestaurantId = reel?.restaurant?.toString();
+            } else if (item.foodItem) {
+                const foodItem = await FoodItem.findById(item.foodItem);
+                itemRestaurantId = foodItem?.restaurant?.toString();
+            }
+
+            if (itemRestaurantId && itemRestaurantId !== restaurant.toString()) {
+                return res.status(400).json({ 
+                    success: false,
+                    message: `Item does not belong to the specified restaurant. Security mismatch.`
+                });
+            }
+        }
+
+        // ── Snapshot Item Data ────────────────────────────────────────────────
+        const orderItems = [];
+        for (const item of items) {
+            let snapshotItem = {
+                quantity: item.quantity,
+                price: item.price // Use price from item (already checked in cart)
+            };
+
+            if (item.reel) {
+                const reel = await Reel.findById(item.reel);
+                snapshotItem.reel = item.reel;
+                snapshotItem.title = reel?.title || "Unknown Reel";
+                snapshotItem.price = reel?.price || item.price;
+            } else if (item.foodItem) {
+                const foodItem = await FoodItem.findById(item.foodItem);
+                snapshotItem.foodItem = item.foodItem;
+                snapshotItem.name = foodItem?.name || "Unknown Item";
+                snapshotItem.price = foodItem?.price || item.price;
+            }
+            orderItems.push(snapshotItem);
         }
 
         const order = new Order({
             user: req.user._id,
-            restaurant: restaurant,
-            items: items,
-            totalAmount: totalAmount,
-            shippingAddress,
+            restaurant,
+            items: orderItems,
+            totalAmount,
+            shippingAddress: shippingAddress.toObject(),
             paymentMethod: paymentMethod || 'COD'
         });
 
         const createdOrder = await order.save();
-        res.status(201).json(createdOrder);
+        console.log("Order saved successfully:", createdOrder);
+
+        // Notify restaurant about new order
+        try {
+            await createNotification(
+                restaurant,
+                'order_placed',
+                `New order received! Order #${String(createdOrder._id).slice(-6).toUpperCase()} worth ₹${totalAmount}`
+            );
+        } catch (e) { /* non-blocking */ }
+
+        res.status(201).json({
+            success: true,
+            data: createdOrder
+        });
     } catch (error) {
         console.error('Order creation error:', error);
         res.status(400).json({ message: error.message });
@@ -50,8 +127,21 @@ const addOrderItems = async (req, res) => {
 // @route   GET /api/orders/myorders
 // @access  Private
 const getMyOrders = async (req, res) => {
-    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
-    res.json(orders);
+    try {
+        console.log("Fetching orders for user ID:", req.user._id);
+        const orders = await Order.find({ user: req.user._id })
+            .populate('restaurant', 'username restaurantDetails profilePicture')
+            .sort({ createdAt: -1 });
+
+        console.log(`Found ${orders.length} orders for user`);
+        res.json({
+            success: true,
+            data: orders
+        });
+    } catch (error) {
+        console.error("Fetch my orders error:", error);
+        res.status(500).json({ message: error.message });
+    }
 };
 
 // @desc    Get all orders (Admin)
@@ -59,7 +149,10 @@ const getMyOrders = async (req, res) => {
 // @access  Private/Admin
 const getOrders = async (req, res) => {
     const orders = await Order.find({}).populate('user', 'id username');
-    res.json(orders);
+    res.json({
+        success: true,
+        data: orders
+    });
 };
 
 // @desc    Get orders for the logged-in restaurant
@@ -70,13 +163,17 @@ const getRestaurantOrders = async (req, res) => {
         if (req.user.role !== 'restaurant') {
             return res.status(403).json({ message: 'Not authorized' });
         }
-        
+
         const orders = await Order.find({ restaurant: req.user._id })
             .populate('user', 'username email')
-            .populate('items.foodItem', 'name price')
+            .populate('items.foodItem', 'name')
+            .populate('items.reel', 'title')
             .sort({ createdAt: -1 });
-            
-        res.json(orders);
+
+        res.json({
+            success: true,
+            data: orders
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -87,33 +184,51 @@ const getRestaurantOrders = async (req, res) => {
 // @access  Private (Restaurant)
 const updateOrderStatus = async (req, res) => {
     try {
-        const { status } = req.body;
-        const order = await Order.findById(req.params.id).populate('user', '_id username email');
-
-        if (!order) {
-            res.status(404);
-            throw new Error('Order not found');
+        if (req.user.role !== 'restaurant') {
+            return res.status(403).json({ message: 'Not authorized' });
         }
 
+        const { status } = req.body;
+        const validStatuses = ['pending', 'preparing', 'completed', 'cancelled'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ message: 'Invalid status value' });
+        }
+
+        const order = await Order.findById(req.params.id).populate('user', '_id username email');
+        if (!order) return res.status(404).json({ message: 'Order not found' });
+
         if (order.restaurant.toString() !== req.user._id.toString()) {
-            res.status(403);
-            throw new Error('Not authorized to update this order');
+            return res.status(403).json({ message: 'Not authorized to update this order' });
         }
 
         order.status = status;
         const updatedOrder = await order.save();
 
-        // Emit Socket.io event for real-time update
+        // Real-time socket emit
         if (global.io) {
             global.io.emit('orderStatusUpdated', {
                 orderId: updatedOrder._id,
                 newStatus: updatedOrder.status,
                 userId: order.user._id
             });
-            console.log(`Socket event emitted: order ${updatedOrder._id} status updated to ${updatedOrder.status}`);
         }
 
-        res.json(updatedOrder);
+        // Notify user about status change
+        try {
+            const messages = {
+                preparing: `Your order #${String(order._id).slice(-6).toUpperCase()} is being prepared! 👨‍🍳`,
+                completed: `Your order #${String(order._id).slice(-6).toUpperCase()} has been completed! ✅`,
+                cancelled: `Your order #${String(order._id).slice(-6).toUpperCase()} was cancelled. ❌`
+            };
+            if (messages[status]) {
+                await createNotification(order.user._id, `order_${status}`, messages[status]);
+            }
+        } catch (e) { /* non-blocking */ }
+
+        res.json({
+            success: true,
+            data: updatedOrder
+        });
     } catch (error) {
         console.error('Status update error:', error);
         res.status(400).json({ message: error.message });

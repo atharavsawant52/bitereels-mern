@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { FaVideo, FaShoppingCart, FaCheckCircle, FaMoneyBillWave } from 'react-icons/fa';
+import api from '../api/client';
 
 const DashboardStats = () => {
     const [stats, setStats] = useState({
@@ -20,8 +20,10 @@ const DashboardStats = () => {
                 const config = {
                      headers: { Authorization: `Bearer ${user.token}` }
                 };
-                const { data } = await axios.get('http://localhost:5000/api/restaurants/stats', config);
-                setStats(data);
+                const response = await api.get('/api/restaurants/stats', config);
+                if (response.data.success) {
+                    setStats(response.data.data);
+                }
             }
         } catch (error) {
             console.error("Error fetching stats:", error);
@@ -34,8 +36,9 @@ const DashboardStats = () => {
 
     // Socket.io real-time stats refresh
     useEffect(() => {
+        const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         // Initialize socket connection
-        socketRef.current = io('http://localhost:5000');
+        socketRef.current = io(socketUrl);
 
         socketRef.current.on('connect', () => {
             console.log('Dashboard connected to Socket.io');

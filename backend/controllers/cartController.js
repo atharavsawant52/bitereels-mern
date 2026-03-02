@@ -6,14 +6,23 @@ const FoodItem = require('../models/FoodItem');
 // @route   GET /api/cart
 // @access  Private
 const getCart = asyncHandler(async (req, res) => {
-    let cart = await Cart.findOne({ user: req.user._id }).populate({
-        path: 'items.foodItem',
-        populate: { path: 'restaurant' }
-    });
+    let cart = await Cart.findOne({ user: req.user._id })
+        .populate({
+            path: 'items.foodItem',
+            populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
+        })
+        .populate({
+            path: 'items.reel',
+            populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
+        });
     if (!cart) {
         cart = await Cart.create({ user: req.user._id, items: [] });
     }
-    res.json(cart);
+
+    res.json({
+        success: true,
+        data: cart
+    });
 });
 
 // @desc    Add item to cart
@@ -21,17 +30,36 @@ const getCart = asyncHandler(async (req, res) => {
 // @access  Private
 const addToCart = async (req, res, next) => {
     try {
-        const { foodItemId, quantity } = req.body;
+        const { foodItemId, reelId, quantity } = req.body;
         
-        if (!foodItemId) {
+        if (!foodItemId && !reelId) {
             res.status(400);
-            return next(new Error('Food Item ID is required'));
+            return next(new Error('Food Item ID or Reel ID is required'));
         }
 
-        const foodItem = await FoodItem.findById(foodItemId);
-        if (!foodItem) {
-            res.status(404);
-            return next(new Error('Food Item not found'));
+        let price = 0;
+        let itemRef = {};
+        let restaurantId = null;
+ 
+        if (foodItemId) {
+            const foodItem = await FoodItem.findById(foodItemId);
+            if (!foodItem) {
+                res.status(404);
+                return next(new Error('Food Item not found'));
+            }
+            price = foodItem.price;
+            restaurantId = foodItem.restaurant;
+            itemRef = { foodItem: foodItemId };
+        } else if (reelId) {
+            const Reel = require('../models/Reel');
+            const reel = await Reel.findById(reelId);
+            if (!reel) {
+                res.status(404);
+                return next(new Error('Reel not found'));
+            }
+            price = reel.price;
+            restaurantId = reel.restaurant;
+            itemRef = { reel: reelId };
         }
 
         let cart = await Cart.findOne({ user: req.user._id });
@@ -40,7 +68,12 @@ const addToCart = async (req, res, next) => {
             cart = await Cart.create({ user: req.user._id, items: [] });
         }
 
-        const itemIndex = cart.items.findIndex(p => p.foodItem.toString() === foodItemId);
+        // Check if item already exists based on either foodItemId or reelId
+        const itemIndex = cart.items.findIndex(p => {
+            if (foodItemId && p.foodItem) return p.foodItem.toString() === foodItemId;
+            if (reelId && p.reel) return p.reel.toString() === reelId;
+            return false;
+        });
 
         if (itemIndex > -1) {
             // Product exists in the cart, update the quantity
@@ -48,9 +81,10 @@ const addToCart = async (req, res, next) => {
         } else {
             // Product does not exist in cart, add new item
             cart.items.push({
-                foodItem: foodItemId,
+                ...itemRef,
+                restaurant: restaurantId,
                 quantity: Number(quantity || 1),
-                price: foodItem.price
+                price: price
             });
         }
 
@@ -62,7 +96,28 @@ const addToCart = async (req, res, next) => {
             populate: { path: 'restaurant' }
         });
         
-        return res.status(200).json({ success: true, cart: updatedCart });
+        // Final check before return: ensure all items have restaurant field if populated from Reel/FoodItem
+        // This handles older items that were in the cart but lacked the field
+        let needsSave = false;
+        for (let item of updatedCart.items) {
+            if (!item.restaurant) {
+                const rId = item.foodItem?.restaurant?._id || item.foodItem?.restaurant || 
+                            item.reel?.restaurant?._id || item.reel?.restaurant;
+                if (rId) {
+                    item.restaurant = rId;
+                    needsSave = true;
+                }
+            }
+        }
+        if (needsSave) {
+            // We use markModified because it's a subdocument change
+            // But wait, updatedCart is a lean object or a full doc?
+            // Actually Cart.findById returns a full doc.
+            await updatedCart.save();
+        }
+
+
+        return res.status(200).json({ success: true, data: updatedCart });
     } catch (error) {
         console.error("Add to cart error:", error);
         return next(error);
@@ -77,7 +132,10 @@ const clearCart = asyncHandler(async (req, res) => {
     if (cart) {
         cart.items = [];
         await cart.save();
-        res.json({ message: 'Cart cleared' });
+        res.json({
+            success: true,
+            message: 'Cart cleared'
+        });
     } else {
          res.status(404);
         throw new Error('Cart not found');
@@ -111,11 +169,20 @@ const updateCartItem = asyncHandler(async (req, res) => {
     cart.items[itemIndex].quantity = Number(quantity);
     await cart.save();
 
-    const updatedCart = await Cart.findById(cart._id).populate({
-        path: 'items.foodItem',
-        populate: { path: 'restaurant' }
+    const updatedCart = await Cart.findById(cart._id)
+        .populate({
+            path: 'items.foodItem',
+            populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
+        })
+        .populate({
+            path: 'items.reel',
+            populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
+        });
+ 
+    res.json({
+        success: true,
+        data: updatedCart
     });
-    res.json(updatedCart);
 });
 
 // @desc    Remove item from cart
@@ -133,11 +200,20 @@ const removeCartItem = asyncHandler(async (req, res) => {
     cart.items = cart.items.filter(item => item._id.toString() !== itemId);
     await cart.save();
 
-    const updatedCart = await Cart.findById(cart._id).populate({
-        path: 'items.foodItem',
-        populate: { path: 'restaurant' }
+    const updatedCart = await Cart.findById(cart._id)
+        .populate({
+            path: 'items.foodItem',
+            populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
+        })
+        .populate({
+            path: 'items.reel',
+            populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
+        });
+ 
+    res.json({
+        success: true,
+        data: updatedCart
     });
-    res.json(updatedCart);
 });
 
 module.exports = {

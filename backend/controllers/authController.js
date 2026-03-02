@@ -2,43 +2,73 @@ const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: Build standard user response
+// ─────────────────────────────────────────────────────────────────────────────
+const buildUserResponse = (user, token) => ({
+    _id: user._id,
+    username: user.username,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    addresses: user.addresses,
+    defaultAddress: user.defaultAddress,
+    restaurantDetails: user.restaurantDetails,
+    profilePicture: user.profilePicture,
+    token
+});
+
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
-    const { username, email, password, role, restaurantDetails } = req.body;
+    const { username, name, email, password, role, restaurantDetails } = req.body;
 
     const userExists = await User.findOne({ $or: [{ email }, { username }] });
-
     if (userExists) {
         res.status(400);
         throw new Error('User with this email or username already exists');
     }
 
-    // specific validation for restaurant
+    // Restaurant validation — require structured businessAddress
     if (role === 'restaurant') {
-        if (!restaurantDetails || !restaurantDetails.restaurantName || !restaurantDetails.address || !restaurantDetails.phone) {
+        if (!restaurantDetails?.restaurantName || !restaurantDetails?.phone) {
             res.status(400);
-            throw new Error('Restaurant name, address and phone are required for restaurant accounts');
+            throw new Error('Restaurant name and phone are required for restaurant accounts');
+        }
+        // businessAddress validation
+        const ba = restaurantDetails?.businessAddress;
+        if (!ba || !ba.street || !ba.city || !ba.state || !ba.postalCode) {
+            res.status(400);
+            throw new Error('Restaurant business address (street, city, state, postalCode) is required');
         }
     }
 
-    const user = await User.create({
+    const userData = {
         username,
+        name: name || username,
         email,
         password,
         role: role || 'user',
-        restaurantDetails: role === 'restaurant' ? restaurantDetails : undefined
-    });
+        // Regular users add delivery addresses from their profile after signup
+        addresses: [],
+        defaultAddress: null
+    };
+
+    if (role === 'restaurant') {
+        userData.restaurantDetails = {
+            restaurantName: restaurantDetails.restaurantName,
+            phone: restaurantDetails.phone,
+            businessAddress: restaurantDetails.businessAddress
+        };
+    }
+
+    const user = await User.create(userData);
 
     if (user) {
         res.status(201).json({
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            restaurantDetails: user.restaurantDetails,
-            token: generateToken(user._id)
+            success: true,
+            data: buildUserResponse(user, generateToken(user._id))
         });
     } else {
         res.status(400);
@@ -56,16 +86,12 @@ const authUser = asyncHandler(async (req, res) => {
 
     if (user && (await user.matchPassword(password))) {
         res.json({
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            restaurantDetails: user.restaurantDetails,
-            token: generateToken(user._id),
-            message: "Login successful"
+            success: true,
+            data: buildUserResponse(user, generateToken(user._id)),
+            message: 'Login successful'
         });
     } else {
-        res.status(401).json({ message: 'Invalid email or password' });
+        res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 });
 
@@ -73,11 +99,11 @@ const authUser = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/logout
 // @access  Public
 const logoutUser = (req, res) => {
-    res.cookie('jwt', '', {
-        httpOnly: true,
-        expires: new Date(0)
+    res.cookie('jwt', '', { httpOnly: true, expires: new Date(0) });
+    res.status(200).json({ 
+        success: true,
+        message: 'Logged out successfully' 
     });
-    res.status(200).json({ message: 'Logged out successfully' });
 };
 
 // @desc    Get user profile
@@ -85,13 +111,10 @@ const logoutUser = (req, res) => {
 // @access  Private
 const getUserProfile = asyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id);
-
     if (user) {
         res.json({
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            role: user.role
+            success: true,
+            data: buildUserResponse(user, req.headers.authorization?.split(' ')[1])
         });
     } else {
         res.status(404);

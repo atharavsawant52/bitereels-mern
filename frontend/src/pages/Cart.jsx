@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FaPlus, FaMinus, FaTrash, FaArrowLeft, FaMotorcycle } from 'react-icons/fa';
+import toast from 'react-hot-toast';
+import api from '../api/client';
 
 const Cart = () => {
     const [cart, setCart] = useState(null);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
+    const [paying, setPaying] = useState(false);
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -25,10 +27,13 @@ const Cart = () => {
                 navigate('/login');
                 return;
             }
-            const { data } = await axios.get('http://localhost:5000/api/cart', { headers });
-            setCart(data);
+            const { data } = await api.get('/api/cart', { headers });
+            if (data.success) {
+                setCart(data.data);
+            }
         } catch (error) {
             console.error("Fetch cart failed", error);
+            toast.error(error.response?.data?.message || 'Failed to load cart');
         } finally {
             setLoading(false);
         }
@@ -44,15 +49,17 @@ const Cart = () => {
         setUpdating(true);
         try {
             const headers = getAuthHeaders();
-            const { data } = await axios.put(
-                `http://localhost:5000/api/cart/item/${itemId}`,
+            const { data } = await api.put(
+                `/api/cart/item/${itemId}`,
                 { quantity: newQuantity },
                 { headers }
             );
-            setCart(data);
+            if (data.success) {
+                setCart(data.data);
+            }
         } catch (error) {
             console.error("Update quantity failed", error);
-            alert("Failed to update quantity");
+            toast.error("Failed to update quantity");
         } finally {
             setUpdating(false);
         }
@@ -64,14 +71,17 @@ const Cart = () => {
         setUpdating(true);
         try {
             const headers = getAuthHeaders();
-            const { data } = await axios.delete(
-                `http://localhost:5000/api/cart/item/${itemId}`,
+            const { data } = await api.delete(
+                `/api/cart/item/${itemId}`,
                 { headers }
             );
-            setCart(data);
+            if (data.success) {
+                setCart(data.data);
+                toast.success('Item removed');
+            }
         } catch (error) {
             console.error("Remove item failed", error);
-            alert("Failed to remove item");
+            toast.error("Failed to remove item");
         } finally {
             setUpdating(false);
         }
@@ -87,59 +97,152 @@ const Cart = () => {
         try {
             const headers = getAuthHeaders();
             
-            // Debug: Check if restaurant data is present
-            console.log('Cart items:', cart.items);
+
             
             // Group items by restaurant
             const restaurantGroups = {};
             cart.items.forEach(item => {
                 // Handle both populated and unpopulated restaurant field
-                const restaurantId = item.foodItem?.restaurant?._id || item.foodItem?.restaurant;
+                // Supports both foodItem and reel based items
+                const restaurantId = item.restaurant?._id || item.restaurant || 
+                                     item.foodItem?.restaurant?._id || item.foodItem?.restaurant || 
+                                     item.reel?.restaurant?._id || item.reel?.restaurant;
                 
                 if (!restaurantId) {
                     console.error('Missing restaurant for item:', item);
-                    throw new Error(`Restaurant information missing for ${item.foodItem?.name || 'item'}. Please refresh the page and try again.`);
+                    throw new Error(`Restaurant information missing for ${item.foodItem?.name || item.reel?.title || 'item'}. Please refresh the page and try again.`);
                 }
                 
-                if (!restaurantGroups[restaurantId]) {
-                    restaurantGroups[restaurantId] = [];
+                const rIdStr = restaurantId.toString();
+                if (!restaurantGroups[rIdStr]) {
+                    restaurantGroups[rIdStr] = [];
                 }
-                restaurantGroups[restaurantId].push(item);
+                restaurantGroups[rIdStr].push(item);
             });
 
-            console.log('Restaurant groups:', restaurantGroups);
+
 
             for (const restaurantId in restaurantGroups) {
                 const items = restaurantGroups[restaurantId].map(item => ({
-                    foodItem: item.foodItem._id,
+                    foodItem: item.foodItem?._id,
+                    reel: item.reel?._id,
                     quantity: item.quantity,
                     price: item.price
                 }));
 
                 const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-                await axios.post('http://localhost:5000/api/orders', {
+                await api.post('/api/orders', {
                     restaurant: restaurantId,
                     items: items,
                     totalAmount: totalAmount + DELIVERY_FEE,
-                    shippingAddress: {
-                        address: "123 Main St",
-                        city: "Metro City",
-                        postalCode: "10001",
-                        country: "India"
-                    },
                     paymentMethod: "COD"
                 }, { headers });
             }
 
-            await axios.delete('http://localhost:5000/api/cart', { headers });
-            alert("Order placed successfully!");
+            await api.delete('/api/cart', { headers });
+            toast.success("Order placed successfully!");
             navigate('/orders');
         } catch (error) {
             console.error("Place order failed", error);
-            alert("Failed to place order: " + (error.response?.data?.message || error.message));
+            if (error.response?.data?.requiresAddress) {
+                if (window.confirm(error.response.data.message + "\n\nGo to profile to add one?")) {
+                    navigate('/profile');
+                }
+            } else {
+                toast.error("Failed to place order: " + (error.response?.data?.message || error.message));
+            }
         } finally {
             setUpdating(false);
+        }
+    };
+
+    const handlePayNow = async () => {
+        if (!cart || cart.items.length === 0) {
+            toast.error('Your cart is empty');
+            return;
+        }
+
+        console.log('Razorpay Key:', import.meta.env.VITE_RAZORPAY_KEY_ID);
+
+        if (!window.Razorpay) {
+            toast.error('Payment service not loaded. Please refresh the page.');
+            return;
+        }
+
+        setPaying(true);
+        try {
+            const res = await api.post('/api/payment/create-order');
+
+            if (!res.data?.success) {
+                toast.error(res.data?.message || 'Failed to create payment order');
+                setPaying(false);
+                return;
+            }
+
+            const { orderId, amount, currency } = res.data;
+            const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+
+            if (!razorpayKey) {
+                console.error('Razorpay key is missing from environment variables');
+                toast.error('Razorpay key is missing. Set VITE_RAZORPAY_KEY_ID in frontend/.env and restart the dev server.');
+                setPaying(false);
+                return;
+            }
+
+            const options = {
+                key: razorpayKey,
+                amount,
+                currency,
+                name: 'BiteReels',
+                description: 'Food Order Payment',
+                order_id: orderId,
+                prefill: {
+                    name: user?.username || user?.name || '',
+                    email: user?.email || ''
+                },
+                theme: {
+                    color: '#f97316'
+                },
+                handler: async (response) => {
+                    try {
+                        const verifyRes = await api.post('/api/payment/verify', response);
+                        if (verifyRes.data?.success) {
+                            toast.success('Payment successful');
+                            navigate('/order-success');
+                            return;
+                        }
+                        toast.error(verifyRes.data?.message || 'Payment verification failed');
+                        navigate('/order-failed');
+                    } catch (err) {
+                        toast.error(err.response?.data?.message || 'Payment verification failed');
+                        navigate('/order-failed');
+                    }
+                },
+                modal: {
+                    ondismiss: () => {
+                        toast.error('Payment cancelled');
+                        navigate('/order-failed');
+                    }
+                }
+            };
+
+            const rzp = new window.Razorpay(options);
+            rzp.on('payment.failed', () => {
+                toast.error('Payment failed');
+                navigate('/order-failed');
+            });
+            rzp.open();
+        } catch (error) {
+            if (error.response?.data?.requiresAddress) {
+                if (window.confirm(error.response.data.message + "\n\nGo to profile to add one?")) {
+                    navigate('/profile');
+                }
+            } else {
+                toast.error(error.response?.data?.message || 'Payment initiation failed');
+            }
+        } finally {
+            setPaying(false);
         }
     };
 
@@ -210,8 +313,11 @@ const Cart = () => {
                                     {/* Details */}
                                     <div className="flex-1 min-w-0">
                                         <h3 className="font-semibold text-base text-white truncate mb-1">
-                                            {item.foodItem?.name || 'Unknown Item'}
+                                            {item.foodItem?.name || item.reel?.title || (loading ? 'Loading...' : 'Unknown Item')}
                                         </h3>
+                                        {item.reel && !item.reel.title && !loading && (
+                                            <p className="text-xs text-gray-500 italic">Processing item details...</p>
+                                        )}
                                         <p className="text-orange-500 font-semibold text-lg">
                                             ₹{Math.round(item.price)}
                                         </p>
@@ -278,6 +384,20 @@ const Cart = () => {
                         {/* Place Order Button - Fixed at bottom on mobile */}
                         <div className="fixed md:relative bottom-0 left-0 right-0 p-4 md:p-0 bg-gradient-to-t from-black via-black to-transparent md:bg-none">
                             <div className="max-w-lg mx-auto">
+                                <button 
+                                    onClick={handlePayNow}
+                                    disabled={updating || paying}
+                                    className="w-full mb-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-full font-semibold text-base shadow-lg shadow-emerald-500/15 hover:shadow-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {paying ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                            <span>Opening Payment...</span>
+                                        </>
+                                    ) : (
+                                        <span>Pay Now (Razorpay)</span>
+                                    )}
+                                </button>
                                 <button 
                                     onClick={handlePlaceOrder}
                                     disabled={updating}

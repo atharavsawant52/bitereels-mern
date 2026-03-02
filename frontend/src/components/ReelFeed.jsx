@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import ReelCard from './ReelCard';
+import api from '../api/client';
 
 const ReelFeed = () => {
     const [reels, setReels] = useState([]);
@@ -9,8 +9,11 @@ const ReelFeed = () => {
     useEffect(() => {
         const fetchReels = async () => {
             try {
-                const { data } = await axios.get('http://localhost:5000/api/reels');
-                setReels(data);
+                const response = await api.get('/api/reels');
+                const resData = response.data;
+                if (resData.success) {
+                    setReels(resData.data);
+                }
             } catch (error) {
                 console.error("Error fetching reels", error);
             } finally {

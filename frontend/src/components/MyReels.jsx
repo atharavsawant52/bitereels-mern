@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { FaTrash, FaEdit } from 'react-icons/fa';
+import api from '../api/client';
 
 const MyReels = ({ refreshTrigger }) => {
     const [reels, setReels] = useState([]);
@@ -14,8 +14,10 @@ const MyReels = ({ refreshTrigger }) => {
                      const config = {
                          headers: { Authorization: `Bearer ${user.token}` }
                     };
-                    const { data } = await axios.get('http://localhost:5000/api/reels/restaurant/my-reels', config);
-                    setReels(data);
+                    const response = await api.get('/api/reels/restaurant/my-reels', config);
+                    if (response.data.success) {
+                        setReels(response.data.data);
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching reels:", error);
@@ -31,7 +33,7 @@ const MyReels = ({ refreshTrigger }) => {
                 const config = {
                         headers: { Authorization: `Bearer ${user.token}` }
                 };
-                await axios.delete(`http://localhost:5000/api/reels/${id}`, config);
+                await api.delete(`/api/reels/${id}`, config);
                 setReels(reels.filter(reel => reel._id !== id));
             } catch (error) {
                 console.error("Error deleting reel:", error);
@@ -52,7 +54,7 @@ const MyReels = ({ refreshTrigger }) => {
                         <div key={reel._id} className="bg-dark rounded-lg overflow-hidden border border-gray-700 shadow-md group">
                             <div className="relative aspect-[9/16] bg-black">
                                 <video 
-                                    src={`http://localhost:5000${reel.videoUrl}`} 
+                                    src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000')}${reel.videoUrl}`} 
                                     className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
                                 />
                                 <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-xs text-white">
@@ -61,9 +63,8 @@ const MyReels = ({ refreshTrigger }) => {
                             </div>
                             <div className="p-4">
                                 <h3 className="font-bold text-lg truncate">{reel.title}</h3>
-                                <p className="text-sm text-gray-400 mb-2 truncate">{reel.foodItem?.name || "Food Item"}</p>
                                 <div className="flex justify-between items-center mt-3">
-                                    <span className="text-green-400 font-bold">${reel.price}</span>
+                                    <span className="text-green-400 font-bold">₹{reel.price}</span>
                                     <div className="flex gap-2">
                                         <button className="p-2 bg-blue-600/20 text-blue-500 rounded hover:bg-blue-600/40 transition">
                                             <FaEdit size={14} />

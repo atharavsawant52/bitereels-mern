@@ -11,7 +11,17 @@ const cartSchema = new mongoose.Schema({
         foodItem: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'FoodItem',
-            required: true
+            required: false // Optional if ordered via Reel
+        },
+        reel: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Reel',
+            required: false
+        },
+        restaurant: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: false // Changed to false to avoid validation errors with existing data
         },
         quantity: {
             type: Number,

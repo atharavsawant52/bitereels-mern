@@ -7,12 +7,17 @@ const path = require('path');
 // @access  Private/Restaurant
 const createReel = asyncHandler(async (req, res) => {
     try {
-        const { title, description, price, foodItemId } = req.body;
+        const { title, description, price } = req.body;
         
         // Ensure user is a restaurant
         if (req.user.role !== 'restaurant') {
              res.status(403);
              throw new Error('Only restaurants can upload reels');
+        }
+
+        if (!price) {
+            res.status(400);
+            throw new Error('Price is required for the reel');
         }
 
         let videoUrl = '';
@@ -23,15 +28,17 @@ const createReel = asyncHandler(async (req, res) => {
         const reel = new Reel({
             videoUrl,
             title,
-            description, // Using description instead of caption as per requirement, or mapping caption to description
+            description,
             price,
             restaurant: req.user._id,
-            foodItem: foodItemId,
             createdBy: req.user._id
         });
 
         const createdReel = await reel.save();
-        res.status(201).json(createdReel);
+        res.status(201).json({
+            success: true,
+            data: createdReel
+        });
     } catch (error) {
         res.status(400);
         throw new Error(error.message);
@@ -44,9 +51,11 @@ const createReel = asyncHandler(async (req, res) => {
 const getReels = asyncHandler(async (req, res) => {
     const reels = await Reel.find({})
         .populate('restaurant', 'username restaurantDetails profilePicture')
-        .populate('foodItem', 'name price category')
         .sort({ createdAt: -1 }); // Newest first
-    res.json(reels);
+    res.json({
+        success: true,
+        data: reels
+    });
 });
 
 // @desc    Like/Unlike a reel
@@ -64,7 +73,10 @@ const likeReel = asyncHandler(async (req, res) => {
             reel.likes.push(req.user._id);
         }
         await reel.save();
-        res.json(reel.likes);
+        res.json({
+            success: true,
+            data: reel.likes
+        });
     } else {
         res.status(404);
         throw new Error('Reel not found');
@@ -92,7 +104,10 @@ const addComment = asyncHandler(async (req, res) => {
         const updatedReel = await Reel.findById(req.params.id).populate('comments.user', 'username profilePicture');
         const newComment = updatedReel.comments[updatedReel.comments.length - 1];
 
-        res.status(201).json(newComment);
+        res.status(201).json({
+            success: true,
+            data: newComment
+        });
     } else {
         res.status(404);
         throw new Error('Reel not found');
@@ -106,7 +121,10 @@ const getComments = asyncHandler(async (req, res) => {
     const reel = await Reel.findById(req.params.id).populate('comments.user', 'username profilePicture');
 
     if (reel) {
-        res.json(reel.comments);
+        res.json({
+            success: true,
+            data: reel.comments
+        });
     } else {
         res.status(404);
         throw new Error('Reel not found');
@@ -122,7 +140,10 @@ const getRestaurantReels = asyncHandler(async (req, res) => {
         throw new Error('Not authorized');
     }
     const reels = await Reel.find({ restaurant: req.user._id }).sort({ createdAt: -1 });
-    res.json(reels);
+    res.json({
+        success: true,
+        data: reels
+    });
 });
 
 // @desc    Delete a reel
@@ -142,11 +163,94 @@ const deleteReel = asyncHandler(async (req, res) => {
         // if (reel.videoUrl) fs.unlink(...)
 
         await reel.deleteOne();
-        res.json({ message: 'Reel removed' });
+        res.json({
+            success: true,
+            message: 'Reel removed'
+        });
     } else {
         res.status(404);
         throw new Error('Reel not found');
     }
+});
+
+// @desc    Search reels by food name and/or geo location
+// @route   GET /api/reels/search?food=biryani&lat=18.52&lng=73.86&radius=10
+//          Falls back to city/area text match when lat/lng not provided.
+// @access  Public
+const searchReels = asyncHandler(async (req, res) => {
+    const { food, lat, lng, radius, location } = req.query;
+
+    if (!food && !lat && !lng && !location) {
+        return res.json({
+            success: true,
+            data: []
+        });
+    }
+
+    const User = require('../models/User');
+    let restaurantIds = null; // null = no geo filter, [] = no results
+
+    // ── Geo filter (when lat/lng provided) ──────────────────────────────────
+    if (lat && lng) {
+        const radiusKm = parseFloat(radius) || 10; // default 10 km
+        const radiusInRadians = radiusKm / 6371;   // Earth radius = 6371 km
+
+        const nearbyRestaurants = await User.find({
+            role: 'restaurant',
+            'restaurantDetails.businessAddress.location': {
+                $geoWithin: {
+                    $centerSphere: [
+                        [parseFloat(lng), parseFloat(lat)],
+                        radiusInRadians
+                    ]
+                }
+            }
+        }).select('_id');
+
+        restaurantIds = nearbyRestaurants.map(r => r._id);
+
+        // No restaurants in radius → no results
+        if (restaurantIds.length === 0) {
+            return res.json({
+                success: true,
+                data: []
+            });
+        }
+    }
+
+    // ── Build reel query ────────────────────────────────────────────────────
+    let reelQuery = {};
+
+    if (food && food.trim()) {
+        reelQuery.title = { $regex: food.trim(), $options: 'i' };
+    }
+
+    if (restaurantIds !== null) {
+        reelQuery.restaurant = { $in: restaurantIds };
+    }
+
+    let reels = await Reel.find(reelQuery)
+        .populate('restaurant', 'username restaurantDetails profilePicture')
+        .sort({ createdAt: -1 });
+
+    // ── Text fallback: filter by city/area string when no lat/lng ───────────
+    if (!lat && !lng && location && location.trim()) {
+        const locationLower = location.trim().toLowerCase();
+        reels = reels.filter(reel => {
+            const ba = reel.restaurant?.restaurantDetails?.businessAddress;
+            const searchStr = [
+                ba?.city || '',
+                ba?.area || '',
+                ba?.state || ''
+            ].join(' ').toLowerCase();
+            return searchStr.includes(locationLower);
+        });
+    }
+
+    res.json({
+        success: true,
+        data: reels
+    });
 });
 
 module.exports = {
@@ -156,5 +260,6 @@ module.exports = {
     addComment,
     getComments,
     getRestaurantReels,
-    deleteReel
+    deleteReel,
+    searchReels
 };

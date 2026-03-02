@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { io } from 'socket.io-client';
+import api from '../api/client';
 
 const Orders = () => {
     const [orders, setOrders] = useState([]);
@@ -12,12 +12,10 @@ const Orders = () => {
     useEffect(() => {
         const fetchOrders = async () => {
             try {
-                const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-                const token = userInfo?.token;
-                const { data } = await axios.get('http://localhost:5000/api/orders/myorders', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setOrders(data);
+                const { data } = await api.get('/api/orders/myorders');
+                if (data.success) {
+                    setOrders(data.data);
+                }
             } catch (error) {
                 console.error("Fetch orders failed", error);
             } finally {
@@ -30,8 +28,9 @@ const Orders = () => {
 
     // Socket.io real-time updates
     useEffect(() => {
+        const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         // Initialize socket connection
-        socketRef.current = io('http://localhost:5000');
+        socketRef.current = io(socketUrl);
 
         socketRef.current.on('connect', () => {
             console.log('Connected to Socket.io server');
@@ -104,7 +103,10 @@ const Orders = () => {
                                     <span className="font-bold text-lg text-white">
                                         Order #{order._id.substring(order._id.length - 6).toUpperCase()}
                                     </span>
-                                    <p className="text-sm text-gray-400 mt-1">
+                                    <h3 className="text-primary font-semibold flex items-center gap-2 mt-1">
+                                        🏪 {order.restaurant?.restaurantDetails?.restaurantName || order.restaurant?.username || 'Restaurant'}
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mt-1">
                                         {new Date(order.createdAt).toLocaleDateString('en-IN', { 
                                             year: 'numeric', 
                                             month: 'short', 
@@ -131,7 +133,7 @@ const Orders = () => {
                                     {order.items.map((item, idx) => (
                                         <li key={idx} className="text-sm text-gray-300 flex justify-between">
                                             <span>
-                                                <span className="text-gray-500">×{item.quantity}</span> {item.foodItem?.name || item.name || 'Item'}
+                                                <span className="text-gray-500">×{item.quantity}</span> {item.name || item.title || item.foodItem?.name || item.reel?.title || 'Item Unavailable'}
                                             </span>
                                             <span className="text-gray-400">₹{Math.round(item.price * item.quantity)}</span>
                                         </li>

@@ -7,11 +7,16 @@ import RestaurantDetail from './pages/RestaurantDetail';
 import Cart from './pages/Cart';
 import Orders from './pages/Orders';
 import UploadReel from './pages/UploadReel';
-import MenuManagement from './pages/MenuManagement';
 import OrdersReceived from './pages/OrdersReceived';
-
 import RestaurantDashboard from './pages/RestaurantDashboard';
 import MainLayout from './components/MainLayout';
+import Search from './pages/Search';
+import UserProfile from './pages/UserProfile';
+import Notifications from './pages/Notifications';
+import ManageMenu from './pages/ManageMenu';
+import OrderSuccess from './pages/OrderSuccess';
+import OrderFailed from './pages/OrderFailed';
+import { Toaster } from 'react-hot-toast';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { user } = useAuth();
@@ -22,7 +27,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         if (user.role === 'restaurant') {
             return <Navigate to="/restaurant-dashboard" replace />;
         }
-        return <Navigate to="/" replace />; 
+        return <Navigate to="/" replace />;
     }
     return children;
 };
@@ -30,17 +35,25 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 function App() {
     return (
         <AuthProvider>
+            <Toaster position="top-center" reverseOrder={false} />
             <BrowserRouter>
                 <div className="min-h-screen bg-dark text-light font-sans">
                     <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/signup" element={<Signup />} />
-                        
+
                         {/* User Routes - Wrapped in MainLayout */}
                         <Route path="/" element={
                             <ProtectedRoute allowedRoles={['user', 'admin']}>
                                 <MainLayout>
                                     <Home />
+                                </MainLayout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/search" element={
+                            <ProtectedRoute allowedRoles={['user', 'admin']}>
+                                <MainLayout>
+                                    <Search />
                                 </MainLayout>
                             </ProtectedRoute>
                         } />
@@ -52,14 +65,38 @@ function App() {
                             </ProtectedRoute>
                         } />
                         <Route path="/orders" element={
-                            <ProtectedRoute allowedRoles={['user', 'restaurant', 'admin']}>
+                            <ProtectedRoute allowedRoles={['user', 'admin']}>
                                 <MainLayout>
                                     <Orders />
                                 </MainLayout>
                             </ProtectedRoute>
                         } />
+                        <Route path="/order-success" element={
+                            <ProtectedRoute allowedRoles={['user', 'admin']}>
+                                <OrderSuccess />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/order-failed" element={
+                            <ProtectedRoute allowedRoles={['user', 'admin']}>
+                                <OrderFailed />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/notifications" element={
+                            <ProtectedRoute allowedRoles={['user', 'admin', 'restaurant']}>
+                                <MainLayout>
+                                    <Notifications />
+                                </MainLayout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/profile" element={
+                            <ProtectedRoute allowedRoles={['user', 'admin']}>
+                                <MainLayout>
+                                    <UserProfile />
+                                </MainLayout>
+                            </ProtectedRoute>
+                        } />
 
-                        {/* Restaurant Routes - Keep existing layout or separate */}
+                        {/* Restaurant Routes */}
                         <Route path="/restaurant-dashboard" element={
                             <ProtectedRoute allowedRoles={['restaurant', 'admin']}>
                                 <RestaurantDashboard />
@@ -70,18 +107,18 @@ function App() {
                                 <UploadReel />
                             </ProtectedRoute>
                         } />
-                        <Route path="/restaurant/menu" element={
-                            <ProtectedRoute allowedRoles={['restaurant']}>
-                                <MenuManagement />
-                            </ProtectedRoute>
-                        } />
                         <Route path="/restaurant/orders" element={
                             <ProtectedRoute allowedRoles={['restaurant']}>
                                 <OrdersReceived />
                             </ProtectedRoute>
                         } />
-                        
-                        {/* Shared/Other */}
+                        <Route path="/restaurant/menu" element={
+                            <ProtectedRoute allowedRoles={['restaurant']}>
+                                <ManageMenu />
+                            </ProtectedRoute>
+                        } />
+
+                        {/* Restaurant Profile — viewable by users */}
                         <Route path="/restaurant/:id" element={
                             <ProtectedRoute allowedRoles={['user', 'admin']}>
                                 <MainLayout>

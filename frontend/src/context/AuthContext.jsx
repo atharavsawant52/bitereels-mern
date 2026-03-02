@@ -1,5 +1,5 @@
 import { createContext, useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import api from '../api/client';
 
 const AuthContext = createContext();
 
@@ -15,7 +15,6 @@ export const AuthProvider = ({ children }) => {
                 const userInfo = localStorage.getItem('userInfo');
                 if (userInfo) {
                     setUser(JSON.parse(userInfo));
-                    // Optional: Verify token with backend
                 }
             } catch (error) {
                 console.error("Auth check failed", error);
@@ -28,10 +27,13 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         try {
-            const { data } = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-            setUser(data);
-            localStorage.setItem('userInfo', JSON.stringify(data));
-            return data;
+            const response = await api.post('/api/auth/login', { email, password });
+            if (response.data.success) {
+                const userData = response.data.data;
+                setUser(userData);
+                localStorage.setItem('userInfo', JSON.stringify(userData));
+                return userData;
+            }
         } catch (error) {
             throw error.response?.data?.message || 'Login failed';
         }
@@ -39,16 +41,19 @@ export const AuthProvider = ({ children }) => {
 
     const signup = async (username, email, password, role, restaurantDetails) => {
         try {
-            const { data } = await axios.post('http://localhost:5000/api/auth/register', { 
-                username, 
-                email, 
+            const response = await api.post('/api/auth/register', {
+                username,
+                email,
                 password,
                 role,
                 restaurantDetails
             });
-            setUser(data);
-            localStorage.setItem('userInfo', JSON.stringify(data));
-            return data;
+            if (response.data.success) {
+                const userData = response.data.data;
+                setUser(userData);
+                localStorage.setItem('userInfo', JSON.stringify(userData));
+                return userData;
+            }
         } catch (error) {
             throw error.response?.data?.message || 'Signup failed';
         }
@@ -56,7 +61,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            await axios.post('http://localhost:5000/api/auth/logout');
+            await api.post('/api/auth/logout');
             setUser(null);
             localStorage.removeItem('userInfo');
         } catch (error) {
@@ -64,12 +69,20 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    // Update user in context + localStorage (after profile edit)
+    const updateUser = (updatedData) => {
+        const merged = { ...user, ...updatedData };
+        setUser(merged);
+        localStorage.setItem('userInfo', JSON.stringify(merged));
+    };
+
     const value = {
         user,
         loading,
         login,
         signup,
-        logout
+        logout,
+        updateUser
     };
 
     return (

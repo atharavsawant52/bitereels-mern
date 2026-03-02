@@ -40,7 +40,6 @@ const RestaurantDashboard = () => {
                     <h1 className="text-3xl font-heading font-bold text-primary tracking-tight">Restaurant Dashboard</h1>
                     <p className="text-gray-400 mt-1 flex items-center gap-2">
                         Welcome, <span className="text-white font-semibold">{user?.restaurantDetails?.restaurantName || user?.username}</span>
-                        <span className="bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full border border-primary/30">PRO</span>
                     </p>
                 </div>
                 <button 
@@ -119,7 +118,11 @@ const RestaurantDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold">Address</p>
-                                <p className="font-medium text-gray-300">{user?.restaurantDetails?.address || "N/A"}</p>
+                                <p className="font-medium text-gray-300">
+                                    {user?.restaurantDetails?.businessAddress ? (
+                                        `${user.restaurantDetails.businessAddress.street}, ${user.restaurantDetails.businessAddress.area ? user.restaurantDetails.businessAddress.area + ', ' : ''}${user.restaurantDetails.businessAddress.city}`
+                                    ) : "Address Not Set"}
+                                </p>
                             </div>
                             <div>
                                 <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold">Phone</p>

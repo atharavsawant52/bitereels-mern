@@ -14,16 +14,17 @@ const reelSchema = new mongoose.Schema({
         type: String
     },
     price: {
-        type: Number
+        type: Number,
+        required: true // Now mandatory as it's the primary price for the reel item
+    },
+    menuItem: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Menu',
+        required: false
     },
     restaurant: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
-    },
-    foodItem: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'FoodItem',
         required: true
     },
     likes: [{

@@ -1,8 +1,26 @@
 const express = require('express');
 const router = express.Router();
-const { followUser } = require('../controllers/userController');
+const {
+    followUser,
+    updateUserProfile,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+    setDefaultAddress
+} = require('../controllers/userController');
 const { protect } = require('../middleware/authMiddleware');
 
-router.route('/:id/follow').put(protect, followUser);
+// ─── Profile update (name / profilePicture) ──────────────────────────────────
+router.put('/update', protect, updateUserProfile);
+
+// ─── Address management ───────────────────────────────────────────────────────
+// IMPORTANT: /address/default/:id must be BEFORE /address/:id  to avoid :id capturing "default"
+router.post('/address', protect, addAddress);
+router.patch('/address/default/:id', protect, setDefaultAddress);
+router.put('/address/:id', protect, updateAddress);
+router.delete('/address/:id', protect, deleteAddress);
+
+// ─── Follow / Unfollow ───────────────────────────────────────────────────────
+router.put('/:id/follow', protect, followUser);
 
 module.exports = router;

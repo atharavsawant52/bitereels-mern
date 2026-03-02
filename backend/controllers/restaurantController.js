@@ -8,20 +8,36 @@ const Order = require('../models/Order');
 // @access  Public
 const getRestaurants = asyncHandler(async (req, res) => {
     const restaurants = await User.find({ role: 'restaurant' }).select('-password');
-    res.json(restaurants);
+    res.json({
+        success: true,
+        data: restaurants
+    });
 });
 
-// @desc    Get restaurant by ID
+// @desc    Get restaurant by ID (with reels)
 // @route   GET /api/restaurants/:id
 // @access  Public
 const getRestaurantById = asyncHandler(async (req, res) => {
+    console.log(`Fetching restaurant with ID: ${req.params.id}`);
     const restaurant = await User.findById(req.params.id).select('-password');
 
     if (restaurant && restaurant.role === 'restaurant') {
-        res.json(restaurant);
+        // Also fetch reels for this restaurant
+        const reels = await Reel.find({ restaurant: req.params.id })
+            .sort({ createdAt: -1 });
+
+        console.log(`Found restaurant: ${restaurant.username}`);
+        res.json({ 
+            success: true, 
+            data: { ...restaurant.toObject(), reels } 
+        });
     } else {
+        console.log(`Restaurant not found or not a restaurant role for ID: ${req.params.id}`);
         res.status(404);
-        throw new Error('Restaurant not found');
+        res.json({
+            success: false,
+            message: 'Restaurant not found'
+        });
     }
 });
 
@@ -31,27 +47,39 @@ const getRestaurantById = asyncHandler(async (req, res) => {
 const updateRestaurantProfile = asyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id);
 
-    if (user) {
-        const { restaurantName, address, phone } = req.body;
-        
-        user.restaurantDetails.restaurantName = restaurantName || user.restaurantDetails.restaurantName;
-        user.restaurantDetails.address = address || user.restaurantDetails.address;
-        user.restaurantDetails.phone = phone || user.restaurantDetails.phone;
-
-        const updatedUser = await user.save();
-        
-        res.json({
-            _id: updatedUser._id,
-            username: updatedUser.username,
-            email: updatedUser.email,
-            role: updatedUser.role,
-            restaurantDetails: updatedUser.restaurantDetails,
-            token: req.headers.authorization.split(' ')[1] // Return generic or regenerate if needed, usually just user info is enough
-        });
-    } else {
+    if (!user) {
         res.status(404);
         throw new Error('User not found');
     }
+
+    const { restaurantName, phone, businessAddress } = req.body;
+
+    if (restaurantName) user.restaurantDetails.restaurantName = restaurantName;
+    if (phone) user.restaurantDetails.phone = phone;
+
+    // Merge structured business address fields
+    if (businessAddress && typeof businessAddress === 'object') {
+        const existing = user.restaurantDetails.businessAddress || {};
+        user.restaurantDetails.businessAddress = {
+            ...existing,
+            ...businessAddress
+        };
+    }
+
+    const updatedUser = await user.save();
+    
+    res.json({
+        success: true,
+        data: {
+            _id: updatedUser._id,
+            username: updatedUser.username,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            restaurantDetails: updatedUser.restaurantDetails,
+            profilePicture: updatedUser.profilePicture
+        }
+    });
 });
 
 // @desc    Get dashboard stats
@@ -75,12 +103,15 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     // Earnings calculation
     const orders = await Order.find({ restaurant: restaurantId, status: 'completed' });
     const totalEarnings = orders.reduce((acc, order) => acc + order.totalAmount, 0);
-
+ 
     res.json({
-        totalReels,
-        totalOrders,
-        completedOrders,
-        totalEarnings
+        success: true,
+        data: {
+            totalReels,
+            totalOrders,
+            completedOrders,
+            totalEarnings
+        }
     });
 });
 

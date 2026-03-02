@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { FaArrowLeft, FaCheck, FaTimes, FaConciergeBell, FaClock, FaBoxOpen } from 'react-icons/fa';
+import api from '../api/client';
 
 const OrdersReceived = () => {
     const [orders, setOrders] = useState([]);
@@ -11,15 +11,10 @@ const OrdersReceived = () => {
 
     const fetchOrders = async () => {
         try {
-            const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-            const token = userInfo?.token;
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            };
-            const { data } = await axios.get('http://localhost:5000/api/orders/restaurant', config);
-            setOrders(data);
+            const { data } = await api.get('/api/orders/restaurant');
+            if (data.success) {
+                setOrders(data.data);
+            }
             setLoading(false);
         } catch (error) {
             console.error('Error fetching orders:', error);
@@ -33,12 +28,7 @@ const OrdersReceived = () => {
 
     const handleStatusUpdate = async (orderId, newStatus) => {
          try {
-            const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-            const token = userInfo?.token;
-            const config = {
-                headers: { Authorization: `Bearer ${token}` }
-            };
-            await axios.put(`http://localhost:5000/api/orders/${orderId}/status`, { status: newStatus }, config);
+            await api.put(`/api/orders/${orderId}/status`, { status: newStatus });
             
             // Optimistic update
             setOrders(orders.map(order => order._id === orderId ? { ...order, status: newStatus } : order));
@@ -149,7 +139,7 @@ const OrdersReceived = () => {
                                                         <li key={index} className="flex justify-between items-center text-sm">
                                                             <div className="flex items-center gap-2">
                                                                 <span className="bg-white/10 text-white px-2 py-0.5 rounded text-xs font-mono">x{item.quantity}</span>
-                                                                <span className="text-gray-200">{item.foodItem?.name || 'Unknown Item'}</span>
+                                                                <span className="text-gray-200">{item.foodItem?.name || item.reel?.title || item.name || item.title || 'Unknown Item'}</span>
                                                             </div>
                                                             <span className="text-gray-400 font-mono">₹{Math.round(item.price)}</span>
                                                         </li>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FaPaperPlane, FaTimes } from 'react-icons/fa';
-import axios from 'axios';
+import api from '../api/client';
 
 const CommentModal = ({ reelId, isOpen, onClose }) => {
     const [comments, setComments] = useState([]);
@@ -15,11 +15,10 @@ const CommentModal = ({ reelId, isOpen, onClose }) => {
 
     const fetchComments = async () => {
         try {
-            // Placeholder: Assume comments are fetched via a GET endpoint or part of reel data
-            // Since we don't have a specific comments endpoint yet, we might need to add one or use reel data.
-            // For now, let's assume an endpoint exists or we'll add it: GET /api/reels/:id/comments
-            const { data } = await axios.get(`http://localhost:5000/api/reels/${reelId}/comments`);
-            setComments(data);
+            const response = await api.get(`/api/reels/${reelId}/comments`);
+            if (response.data.success) {
+                setComments(response.data.data);
+            }
         } catch (error) {
             console.error("Error fetching comments", error);
         }
@@ -39,12 +38,14 @@ const CommentModal = ({ reelId, isOpen, onClose }) => {
                 }
             };
 
-            const { data } = await axios.post(`http://localhost:5000/api/reels/${reelId}/comments`, {
+            const response = await api.post(`/api/reels/${reelId}/comments`, {
                 text: newComment
             }, config);
-
-            setComments([...comments, data]);
-            setNewComment('');
+            
+            if (response.data.success) {
+                setComments([...comments, response.data.data]);
+                setNewComment('');
+            }
         } catch (error) {
             console.error("Error posting comment", error);
         }

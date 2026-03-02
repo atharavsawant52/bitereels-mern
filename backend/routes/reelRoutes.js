@@ -9,7 +9,8 @@ const {
     addComment,
     getComments,
     getRestaurantReels,
-    deleteReel
+    deleteReel,
+    searchReels
 } = require('../controllers/reelController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -46,6 +47,8 @@ router.route('/')
     .get(getReels)
     .post(protect, upload.single('video'), createReel);
 
+// Must be before /:id to avoid param collision
+router.route('/search').get(searchReels);
 router.route('/restaurant/my-reels').get(protect, getRestaurantReels);
 
 router.route('/:id')

@@ -17,5 +17,6 @@ router.route('/restaurant').get(protect, authorize('restaurant'), getRestaurantO
 router.route('/:id/status').put(protect, updateOrderStatus);
 
 router.route('/myorders').get(protect, getMyOrders);
+router.route('/my-orders').get(protect, getMyOrders);
 
 module.exports = router;

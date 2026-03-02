@@ -1,17 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FaHome, FaSearch, FaPlay, FaShoppingBag, FaUser, FaHeart, FaShoppingCart } from 'react-icons/fa';
-import { BiMessageRoundedDots } from 'react-icons/bi';
+import { FaHome, FaSearch, FaShoppingBag, FaUser, FaBell, FaShoppingCart } from 'react-icons/fa';
 
 const Sidebar = () => {
     const location = useLocation();
-    
+
     const menuItems = [
         { icon: FaHome, label: 'Home', path: '/' },
         { icon: FaSearch, label: 'Search', path: '/search' },
-        { icon: FaPlay, label: 'Reels', path: '/' }, // Assuming Home IS Reels feed as per current app structure
-        { icon: BiMessageRoundedDots, label: 'Messages', path: '/messages' },
         { icon: FaShoppingCart, label: 'Cart', path: '/cart' },
-        { icon: FaHeart, label: 'Notifications', path: '/notifications' },
+        { icon: FaBell, label: 'Notifications', path: '/notifications' },
         { icon: FaShoppingBag, label: 'Orders', path: '/orders' },
         { icon: FaUser, label: 'Profile', path: '/profile' },
     ];
@@ -21,7 +18,7 @@ const Sidebar = () => {
             {/* Logo */}
             <div className="mb-8 px-2 xl:px-4 mt-2">
                 <h1 className="hidden xl:block text-2xl font-heading font-bold tracking-wide cursor-pointer">BiteReels</h1>
-                <FaPlay className="xl:hidden text-2xl cursor-pointer" />
+                <span className="xl:hidden text-2xl font-bold text-primary">B</span>
             </div>
 
             {/* Menu */}
@@ -29,12 +26,12 @@ const Sidebar = () => {
                 {menuItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
-                        <Link 
+                        <Link
                             key={item.label}
                             to={item.path}
-                            className={`flex items-center gap-4 p-3 rounded-lg hover:bg-gray-900 transition-all group ${isActive ? 'font-bold' : ''}`}
+                            className={`flex items-center gap-4 p-3 rounded-lg hover:bg-gray-900 transition-all group ${isActive ? 'font-bold bg-gray-900' : ''}`}
                         >
-                            <item.icon className={`text-2xl group-hover:scale-105 transition-transform ${isActive ? 'text-white' : 'text-gray-200'}`} />
+                            <item.icon className={`text-2xl group-hover:scale-105 transition-transform ${isActive ? 'text-primary' : 'text-gray-200'}`} />
                             <span className="hidden xl:block text-base">{item.label}</span>
                         </Link>
                     );
