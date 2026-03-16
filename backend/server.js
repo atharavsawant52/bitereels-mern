@@ -13,7 +13,7 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+const clientUrl = process.env.CLIENT_URL || 'https://bitereels-frontend.onrender.com';
 const io = new Server(server, {
     cors: {
         origin: clientUrl,

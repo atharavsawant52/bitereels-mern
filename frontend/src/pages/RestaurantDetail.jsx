@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const RestaurantDetail = () => {
     const { id } = useParams();
     const { user } = useAuth();
@@ -183,7 +185,7 @@ const RestaurantDetail = () => {
                             {reels.map((reel) => (
                                 <div key={reel._id} className="aspect-[9/16] bg-gray-900 relative overflow-hidden rounded group cursor-pointer">
                                     <video
-                                        src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000')}${reel.videoUrl}`}
+                                        src={`${apiUrl}${reel.videoUrl}`}
                                         className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
                                         muted
                                         playsInline

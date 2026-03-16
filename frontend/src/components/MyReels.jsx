@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { FaTrash, FaEdit } from 'react-icons/fa';
 import api from '../api/client';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const MyReels = ({ refreshTrigger }) => {
     const [reels, setReels] = useState([]);
     const { user } = useAuth();
@@ -54,7 +56,7 @@ const MyReels = ({ refreshTrigger }) => {
                         <div key={reel._id} className="bg-dark rounded-lg overflow-hidden border border-gray-700 shadow-md group">
                             <div className="relative aspect-[9/16] bg-black">
                                 <video 
-                                    src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000')}${reel.videoUrl}`} 
+                                    src={`${apiUrl}${reel.videoUrl}`} 
                                     className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
                                 />
                                 <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-xs text-white">

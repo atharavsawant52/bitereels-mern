@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { FaVideo, FaShoppingCart, FaCheckCircle, FaMoneyBillWave } from 'react-icons/fa';
 import api from '../api/client';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const DashboardStats = () => {
     const [stats, setStats] = useState({
         totalReels: 0,
@@ -36,9 +38,8 @@ const DashboardStats = () => {
 
     // Socket.io real-time stats refresh
     useEffect(() => {
-        const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         // Initialize socket connection
-        socketRef.current = io(socketUrl);
+        socketRef.current = io(apiUrl);
 
         socketRef.current.on('connect', () => {
             console.log('Dashboard connected to Socket.io');

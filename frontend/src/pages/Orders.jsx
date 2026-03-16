@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { io } from 'socket.io-client';
 import api from '../api/client';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const Orders = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -28,9 +30,8 @@ const Orders = () => {
 
     // Socket.io real-time updates
     useEffect(() => {
-        const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
         // Initialize socket connection
-        socketRef.current = io(socketUrl);
+        socketRef.current = io(apiUrl);
 
         socketRef.current.on('connect', () => {
             console.log('Connected to Socket.io server');

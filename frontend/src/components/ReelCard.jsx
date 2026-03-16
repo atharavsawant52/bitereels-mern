@@ -6,6 +6,8 @@ import api from '../api/client';
 
 import CommentModal from './CommentModal';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const ReelCard = ({ reel }) => {
     const videoRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -100,7 +102,7 @@ const ReelCard = ({ reel }) => {
     };
 
     const handleShare = () => {
-         navigator.clipboard.writeText(`http://localhost:5173/reel/${reel._id}`)
+         navigator.clipboard.writeText(`${window.location.origin}/reel/${reel._id}`)
             .then(() => alert("Link copied to clipboard!"))
             .catch(() => alert("Failed to copy link"));
     };
@@ -130,7 +132,7 @@ const ReelCard = ({ reel }) => {
             {/* Video Player */}
             <video
                 ref={videoRef}
-                src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000')}${reel.videoUrl}`}
+                src={`${apiUrl}${reel.videoUrl}`}
                 className="h-full w-full object-cover"
                 loop
                 muted={false} 

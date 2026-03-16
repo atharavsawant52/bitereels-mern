@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import api from '../api/client';
 import { useNavigate } from 'react-router-dom';
 
+const apiUrl = import.meta.env.VITE_API_URL;
+
 const SavedReels = () => {
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +54,7 @@ const SavedReels = () => {
             {reels.map(reel => (
               <div key={reel._id} className="relative group rounded-xl overflow-hidden border border-white/10">
                 <video
-                  src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000')}${reel.videoUrl}`}
+                  src={`${apiUrl}${reel.videoUrl}`}
                   className="w-full aspect-[9/16] object-cover opacity-80 group-hover:opacity-100 transition"
                   muted
                   playsInline
