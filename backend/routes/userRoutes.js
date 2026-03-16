@@ -6,12 +6,16 @@ const {
     addAddress,
     updateAddress,
     deleteAddress,
-    setDefaultAddress
+    setDefaultAddress,
+    toggleSavedReel,
+    getSavedReels
 } = require('../controllers/userController');
 const { protect } = require('../middleware/authMiddleware');
 
 // ─── Profile update (name / profilePicture) ──────────────────────────────────
 router.put('/update', protect, updateUserProfile);
+router.get('/saved-reels', protect, getSavedReels);
+router.put('/saved-reels/:reelId', protect, toggleSavedReel);
 
 // ─── Address management ───────────────────────────────────────────────────────
 // IMPORTANT: /address/default/:id must be BEFORE /address/:id  to avoid :id capturing "default"

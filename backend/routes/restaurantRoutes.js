@@ -4,12 +4,14 @@ const {
     getRestaurants,
     getRestaurantById,
     updateRestaurantProfile,
-    getDashboardStats
+    getDashboardStats,
+    updateDeliverySettings
 } = require('../controllers/restaurantController');
 const { protect } = require('../middleware/authMiddleware');
 
 router.route('/').get(getRestaurants);
 router.route('/profile').put(protect, updateRestaurantProfile);
+router.route('/delivery-settings').patch(protect, updateDeliverySettings);
 router.route('/stats').get(protect, getDashboardStats);
 router.route('/:id').get(getRestaurantById);
 

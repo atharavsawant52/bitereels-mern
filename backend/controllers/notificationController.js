@@ -13,7 +13,10 @@ const getNotifications = async (req, res) => {
         const notifications = await Notification.find({ userId: req.user._id })
             .sort({ createdAt: -1 })
             .limit(50);
-        res.json(notifications);
+        res.json({
+            success: true,
+            data: notifications
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

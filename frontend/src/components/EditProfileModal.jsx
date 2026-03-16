@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { FaTimes, FaMapMarkerAlt } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 import api from '../api/client';
 
 const EditProfileModal = ({ isOpen, onClose, userDetails, onUpdate }) => {
@@ -63,11 +64,11 @@ const EditProfileModal = ({ isOpen, onClose, userDetails, onUpdate }) => {
                 headers: { Authorization: `Bearer ${user.token}` }
             };
             const { data } = await api.put('/api/restaurants/profile', payload, config);
-            onUpdate(data);
+            onUpdate(data.data);
             onClose();
         } catch (error) {
             console.error("Error updating profile:", error);
-            alert("Failed to update profile");
+            toast.error(error.response?.data?.message || 'Failed to update profile');
         } finally {
             setLoading(false);
         }

@@ -10,9 +10,38 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    height: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-dark text-light font-sans;
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    height: 100%;
+    overflow-x: hidden;
+    background:
+      radial-gradient(circle at top, rgba(255, 75, 58, 0.14), transparent 24%),
+      linear-gradient(180deg, #050816 0%, #02040a 100%);
   }
+
+  #root {
+    height: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
   }
@@ -25,5 +54,33 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.55) rgba(15, 23, 42, 0.25);
+  }
+
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.25);
+    border-radius: 9999px;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(255, 75, 58, 0.9), rgba(148, 163, 184, 0.75));
+    border-radius: 9999px;
+  }
+
+  .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(255, 75, 58, 1), rgba(226, 232, 240, 0.9));
   }
 }

@@ -43,6 +43,20 @@ const addOrderItems = async (req, res) => {
             return res.status(400).json({ message: 'Restaurant ID is required' });
         }
 
+        const restaurantUser = await User.findById(restaurant).select('restaurantDetails.deliverySettings restaurantDetails.restaurantStatus');
+        if (restaurantUser?.restaurantDetails?.restaurantStatus === 'closed') {
+            return res.status(409).json({
+                success: false,
+                message: 'Online delivery is currently paused for this restaurant.'
+            });
+        }
+        if (restaurantUser?.restaurantDetails?.deliverySettings?.isDeliveryPaused) {
+            return res.status(409).json({
+                success: false,
+                message: 'This restaurant has temporarily paused online delivery. Please try again later.'
+            });
+        }
+
         if (!items || items.length === 0) {
             return res.status(400).json({ message: 'No order items' });
         }
@@ -165,7 +179,7 @@ const getRestaurantOrders = async (req, res) => {
         }
 
         const orders = await Order.find({ restaurant: req.user._id })
-            .populate('user', 'username email')
+            .populate('user', 'username name email')
             .populate('items.foodItem', 'name')
             .populate('items.reel', 'title')
             .sort({ createdAt: -1 });

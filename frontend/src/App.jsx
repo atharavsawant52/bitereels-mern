@@ -16,6 +16,7 @@ import Notifications from './pages/Notifications';
 import ManageMenu from './pages/ManageMenu';
 import OrderSuccess from './pages/OrderSuccess';
 import OrderFailed from './pages/OrderFailed';
+import SavedReels from './pages/SavedReels';
 import { Toaster } from 'react-hot-toast';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -35,7 +36,33 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 function App() {
     return (
         <AuthProvider>
-            <Toaster position="top-center" reverseOrder={false} />
+            <Toaster
+                position="top-right"
+                reverseOrder={false}
+                toastOptions={{
+                    duration: 3200,
+                    style: {
+                        background: 'rgba(9, 14, 26, 0.95)',
+                        color: '#f8fafc',
+                        border: '1px solid rgba(148, 163, 184, 0.18)',
+                        borderRadius: '18px',
+                        padding: '14px 16px',
+                        boxShadow: '0 24px 60px rgba(2, 6, 23, 0.5)'
+                    },
+                    success: {
+                        iconTheme: {
+                            primary: '#fb5d47',
+                            secondary: '#ffffff'
+                        }
+                    },
+                    error: {
+                        iconTheme: {
+                            primary: '#ef4444',
+                            secondary: '#ffffff'
+                        }
+                    }
+                }}
+            />
             <BrowserRouter>
                 <div className="min-h-screen bg-dark text-light font-sans">
                     <Routes>
@@ -85,6 +112,13 @@ function App() {
                             <ProtectedRoute allowedRoles={['user', 'admin', 'restaurant']}>
                                 <MainLayout>
                                     <Notifications />
+                                </MainLayout>
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/saved" element={
+                            <ProtectedRoute allowedRoles={['user', 'admin']}>
+                                <MainLayout>
+                                    <SavedReels />
                                 </MainLayout>
                             </ProtectedRoute>
                         } />

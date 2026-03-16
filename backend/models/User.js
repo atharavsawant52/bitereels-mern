@@ -45,6 +45,26 @@ const userSchema = new mongoose.Schema({
         restaurantName: { type: String },
         businessAddress: { type: addressSchema },
         phone: { type: String },
+        restaurantStatus: {
+            type: String,
+            enum: ['open', 'closed'],
+            default: 'open'
+        },
+        deliverySettings: {
+            isDeliveryPaused: {
+                type: Boolean,
+                default: false
+            },
+            updatedAt: {
+                type: Date,
+                default: null
+            },
+            note: {
+                type: String,
+                trim: true,
+                default: ''
+            }
+        },
         menu: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Menu'

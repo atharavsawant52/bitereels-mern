@@ -1,6 +1,7 @@
 const asyncHandler = require('express-async-handler');
 const Reel = require('../models/Reel');
 const path = require('path');
+const User = require('../models/User');
 
 // @desc    Create a new reel
 // @route   POST /api/reels
@@ -253,6 +254,68 @@ const searchReels = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Save/unsave a reel
+// @route   PUT /api/reels/:id/save
+// @access  Private
+const toggleSaveReel = asyncHandler(async (req, res) => {
+    const [reel, user] = await Promise.all([
+        Reel.findById(req.params.id),
+        User.findById(req.user._id)
+    ]);
+
+    if (!reel) {
+        res.status(404);
+        throw new Error('Reel not found');
+    }
+
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+
+    const isSaved = user.savedReels.some((savedReelId) => savedReelId.toString() === req.params.id);
+
+    if (isSaved) {
+        user.savedReels = user.savedReels.filter((savedReelId) => savedReelId.toString() !== req.params.id);
+    } else {
+        user.savedReels.push(reel._id);
+    }
+
+    await user.save();
+
+    res.json({
+        success: true,
+        message: isSaved ? 'Reel removed from saved list' : 'Reel saved successfully',
+        data: {
+            saved: !isSaved,
+            savedReels: user.savedReels
+        }
+    });
+});
+
+// @desc    Get saved reels for logged-in user
+// @route   GET /api/reels/saved
+// @access  Private
+const getSavedReels = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id).populate({
+        path: 'savedReels',
+        populate: {
+            path: 'restaurant',
+            select: 'username restaurantDetails profilePicture'
+        }
+    });
+
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+
+    res.json({
+        success: true,
+        data: user.savedReels
+    });
+});
+
 module.exports = {
     createReel,
     getReels,
@@ -261,5 +324,7 @@ module.exports = {
     getComments,
     getRestaurantReels,
     deleteReel,
-    searchReels
+    searchReels,
+    toggleSaveReel,
+    getSavedReels
 };

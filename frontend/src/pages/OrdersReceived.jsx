@@ -1,7 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaCheck, FaTimes, FaConciergeBell, FaClock, FaBoxOpen } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaTimes, FaConciergeBell, FaClock, FaBoxOpen, FaPhone, FaMapMarkerAlt, FaUser } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 import api from '../api/client';
+import { formatCurrency, formatDateTime, formatFullAddress } from '../utils/formatters';
+
+const tabOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'preparing', label: 'Preparing' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' }
+];
+
+const statusStyles = {
+    pending: 'border-amber-400/20 bg-amber-500/10 text-amber-200',
+    preparing: 'border-sky-400/20 bg-sky-500/10 text-sky-200',
+    completed: 'border-emerald-400/20 bg-emerald-500/10 text-emerald-200',
+    cancelled: 'border-red-400/20 bg-red-500/10 text-red-200'
+};
 
 const OrdersReceived = () => {
     const [orders, setOrders] = useState([]);
@@ -9,84 +26,66 @@ const OrdersReceived = () => {
     const [activeTab, setActiveTab] = useState('all');
     const navigate = useNavigate();
 
-    const fetchOrders = async () => {
-        try {
-            const { data } = await api.get('/api/orders/restaurant');
-            if (data.success) {
-                setOrders(data.data);
-            }
-            setLoading(false);
-        } catch (error) {
-            console.error('Error fetching orders:', error);
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
+        const fetchOrders = async () => {
+            try {
+                const { data } = await api.get('/api/orders/restaurant');
+                if (data.success) {
+                    setOrders(data.data);
+                }
+            } catch (error) {
+                console.error('Error fetching orders:', error);
+                toast.error('Failed to fetch orders');
+            } finally {
+                setLoading(false);
+            }
+        };
+
         fetchOrders();
     }, []);
 
     const handleStatusUpdate = async (orderId, newStatus) => {
-         try {
+        try {
             await api.put(`/api/orders/${orderId}/status`, { status: newStatus });
-            
-            // Optimistic update
-            setOrders(orders.map(order => order._id === orderId ? { ...order, status: newStatus } : order));
+            setOrders((currentOrders) =>
+                currentOrders.map((order) => (order._id === orderId ? { ...order, status: newStatus } : order))
+            );
+            toast.success(`Order marked as ${newStatus}`);
         } catch (error) {
             console.error('Error updating status:', error);
-            alert("Failed to update status");
+            toast.error('Failed to update status');
         }
     };
 
-    const filteredOrders = activeTab === 'all' 
-        ? orders 
-        : orders.filter(order => order.status === activeTab);
-
-    const tabs = [
-        { value: 'all', label: 'All' },
-        { value: 'pending', label: 'Pending' },
-        { value: 'preparing', label: 'Preparing' },
-        { value: 'completed', label: 'Completed' },
-        { value: 'cancelled', label: 'Cancelled' }
-    ];
-
-    const getStatusColor = (status) => {
-        switch(status) {
-            case 'pending': return 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30';
-            case 'preparing': return 'bg-blue-500/20 text-blue-500 border-blue-500/30';
-            case 'completed': return 'bg-green-500/20 text-green-500 border-green-500/30';
-            case 'cancelled': return 'bg-red-500/20 text-red-500 border-red-500/30';
-            default: return 'bg-gray-500/20 text-gray-500';
-        }
-    };
+    const filteredOrders = activeTab === 'all'
+        ? orders
+        : orders.filter((order) => order.status === activeTab);
 
     return (
-        <div className="min-h-screen bg-dark text-light p-6">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                 <header className="flex items-center gap-4 mb-8">
-                    <button 
-                         onClick={() => navigate('/restaurant-dashboard')}
-                         className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition"
+        <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,93,71,0.16),_transparent_24%),linear-gradient(180deg,#050816_0%,#02040a_100%)] px-4 py-6 text-white md:px-6">
+            <div className="mx-auto max-w-7xl space-y-8">
+                <header className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/restaurant-dashboard')}
+                        className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
                     >
-                        <FaArrowLeft />
+                        <FaArrowLeft size={14} />
                     </button>
                     <div>
-                        <h1 className="text-3xl font-heading font-bold text-primary">Orders Received</h1>
-                        <p className="text-gray-400 text-sm">Manage and track your customer orders</p>
+                        <p className="text-sm font-semibold uppercase tracking-[0.32em] text-primary">Orders Received</p>
+                        <h1 className="mt-2 text-3xl font-black tracking-tight text-white">Manage live customer orders</h1>
                     </div>
                 </header>
 
-                {/* Tabs */}
-                <div className="flex flex-wrap gap-2 mb-8 border-b border-gray-700 pb-1">
-                    {tabs.map(tab => (
+                <div className="flex flex-wrap gap-3">
+                    {tabOptions.map((tab) => (
                         <button
                             key={tab.value}
                             onClick={() => setActiveTab(tab.value)}
-                            className={`px-6 py-2 rounded-t-lg font-semibold transition ${
-                                activeTab === tab.value 
-                                ? 'bg-primary text-white border-b-2 border-primary' 
-                                : 'bg-transparent text-gray-400 hover:text-white hover:bg-white/5'
+                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                                activeTab === tab.value
+                                    ? 'border-primary/30 bg-primary/15 text-primary'
+                                    : 'border-white/10 bg-white/[0.03] text-slate-300'
                             }`}
                         >
                             {tab.label}
@@ -95,114 +94,138 @@ const OrdersReceived = () => {
                 </div>
 
                 {loading ? (
-                    <div className="text-center text-gray-400 py-20 flex flex-col items-center">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
-                        <p>Loading orders...</p>
+                    <div className="flex items-center justify-center rounded-[32px] border border-white/8 bg-slate-950/40 py-24">
+                        <div className="text-center">
+                            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-2 border-white/10 border-t-primary" />
+                            <p className="text-sm text-slate-400">Loading orders...</p>
+                        </div>
+                    </div>
+                ) : filteredOrders.length === 0 ? (
+                    <div className="rounded-[32px] border border-dashed border-white/10 bg-slate-950/35 px-6 py-24 text-center">
+                        <FaBoxOpen className="mx-auto text-slate-500" size={28} />
+                        <h3 className="mt-5 text-2xl font-bold text-white">No {activeTab !== 'all' ? activeTab : ''} orders found</h3>
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        {filteredOrders.length === 0 ? (
-                            <div className="text-center py-20 bg-secondary rounded-xl border border-gray-700">
-                                <FaBoxOpen className="mx-auto text-gray-600 mb-4" size={48} />
-                                <p className="text-gray-400 text-lg">No {activeTab !== 'all' ? activeTab : ''} orders found.</p>
-                            </div>
-                        ) : (
-                            <div className="grid gap-6">
-                                {filteredOrders.map(order => (
-                                    <div key={order._id} className="bg-secondary border border-gray-700 rounded-xl overflow-hidden shadow-lg flex flex-col md:flex-row">
-                                        
-                                        {/* Order Info Left */}
-                                        <div className="p-6 flex-1">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                    <div className="flex items-center gap-3 mb-1">
-                                                        <span className="font-bold text-lg text-white">#{order._id.substring(order._id.length - 6).toUpperCase()}</span>
-                                                        <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(order.status)}`}>
-                                                            {order.status}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-400 flex items-center gap-2">
-                                                        <FaClock size={12} /> {new Date(order.createdAt).toLocaleString()}
+                    <div className="space-y-5">
+                        {filteredOrders.map((order) => (
+                            <article key={order._id} className="rounded-[30px] border border-white/8 bg-slate-950/40 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+                                <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+                                    <div className="space-y-5">
+                                        <div className="flex flex-wrap items-center justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-3">
+                                                    <p className="text-xl font-bold text-white">
+                                                        #{order._id.substring(order._id.length - 6).toUpperCase()}
                                                     </p>
-                                                    <p className="text-sm text-gray-400 mt-1">Customer: <span className="text-white font-medium">{order.user?.username || 'Guest'}</span></p>
+                                                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] ${statusStyles[order.status]}`}>
+                                                        {order.status}
+                                                    </span>
                                                 </div>
-                                                <div className="text-right">
-                                                    <div className="text-2xl font-bold text-primary">₹{Math.round(order.totalAmount)}</div>
-                                                    <p className="text-xs text-gray-500">Total Amount</p>
+                                                <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-400">
+                                                    <span className="flex items-center gap-2">
+                                                        <FaClock size={12} />
+                                                        {formatDateTime(order.createdAt)}
+                                                    </span>
+                                                    <span className="font-semibold text-primary">{formatCurrency(order.totalAmount)}</span>
                                                 </div>
-                                            </div>
-
-                                            <div className="bg-dark/50 p-4 rounded-lg border border-gray-700/50">
-                                                <h4 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-3">Order Items</h4>
-                                                <ul className="space-y-2">
-                                                    {order.items.map((item, index) => (
-                                                        <li key={index} className="flex justify-between items-center text-sm">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="bg-white/10 text-white px-2 py-0.5 rounded text-xs font-mono">x{item.quantity}</span>
-                                                                <span className="text-gray-200">{item.foodItem?.name || item.reel?.title || item.name || item.title || 'Unknown Item'}</span>
-                                                            </div>
-                                                            <span className="text-gray-400 font-mono">₹{Math.round(item.price)}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
                                             </div>
                                         </div>
 
-                                        {/* Actions Right */}
-                                        <div className="bg-gray-800/50 p-6 md:w-64 border-t md:border-t-0 md:border-l border-gray-700 flex flex-col justify-center gap-3">
-                                            <h4 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Update Status</h4>
-                                            
-                                            {/* Step-based status controls */}
-                                            {order.status === 'pending' && (
-                                                <>
-                                                    <button 
-                                                        onClick={() => handleStatusUpdate(order._id, 'preparing')}
-                                                        className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition font-semibold"
-                                                    >
-                                                        <FaConciergeBell /> Mark as Preparing
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleStatusUpdate(order._id, 'cancelled')}
-                                                        className="w-full flex items-center justify-center gap-2 bg-red-900/50 hover:bg-red-900/80 text-red-400 border border-red-900 py-2 rounded transition font-semibold"
-                                                    >
-                                                        <FaTimes /> Cancel Order
-                                                    </button>
-                                                </>
-                                            )}
-                                            
-                                            {order.status === 'preparing' && (
-                                                <>
-                                                    <button 
-                                                        onClick={() => handleStatusUpdate(order._id, 'completed')}
-                                                        className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-2 rounded transition font-semibold"
-                                                    >
-                                                        <FaCheck /> Mark Completed
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleStatusUpdate(order._id, 'cancelled')}
-                                                        className="w-full flex items-center justify-center gap-2 bg-red-900/50 hover:bg-red-900/80 text-red-400 border border-red-900 py-2 rounded transition font-semibold"
-                                                    >
-                                                        <FaTimes /> Cancel Order
-                                                    </button>
-                                                </>
-                                            )}
-                                            
-                                            {order.status === 'completed' && (
-                                                <div className="text-center text-green-500 font-bold flex items-center justify-center gap-2 py-2">
-                                                    <FaCheck /> Order Completed
-                                                </div>
-                                            )}
-                                            
-                                             {order.status === 'cancelled' && (
-                                                <div className="text-center text-red-500 font-bold flex items-center justify-center gap-2 py-2">
-                                                    <FaTimes /> Order Cancelled
-                                                </div>
-                                            )}
+                                        <div className="rounded-[24px] border border-white/8 bg-black/20 p-4">
+                                            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Order Items</p>
+                                            <div className="mt-4 space-y-3">
+                                                {order.items.map((item, index) => (
+                                                    <div key={`${order._id}-${index}`} className="flex items-center justify-between gap-4 rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-white">
+                                                                {item.foodItem?.name || item.reel?.title || item.name || item.title || 'Unknown item'}
+                                                            </p>
+                                                            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Qty {item.quantity}</p>
+                                                        </div>
+                                                        <p className="text-sm font-semibold text-primary">{formatCurrency(item.price * item.quantity)}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+
+                                    <div className="space-y-5">
+                                        <section className="rounded-[24px] border border-white/8 bg-black/20 p-5">
+                                            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Customer Details</p>
+                                            <div className="mt-4 space-y-3 text-sm text-slate-300">
+                                                <p className="flex items-center gap-3">
+                                                    <FaUser className="text-primary" />
+                                                    <span>{order.shippingAddress?.fullName || order.user?.name || order.user?.username || 'Customer'}</span>
+                                                </p>
+                                                <p className="flex items-center gap-3">
+                                                    <FaPhone className="text-primary" />
+                                                    <span>{order.shippingAddress?.phone || 'Phone not available'}</span>
+                                                </p>
+                                                <p className="flex items-start gap-3">
+                                                    <FaMapMarkerAlt className="mt-1 text-primary" />
+                                                    <span className="leading-7">{formatFullAddress(order.shippingAddress)}</span>
+                                                </p>
+                                            </div>
+                                        </section>
+
+                                        <section className="rounded-[24px] border border-white/8 bg-black/20 p-5">
+                                            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Update Status</p>
+                                            <div className="mt-4 space-y-3">
+                                                {order.status === 'pending' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleStatusUpdate(order._id, 'preparing')}
+                                                            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-400"
+                                                        >
+                                                            <FaConciergeBell size={12} />
+                                                            Mark as preparing
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleStatusUpdate(order._id, 'cancelled')}
+                                                            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/16 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/16"
+                                                        >
+                                                            <FaTimes size={12} />
+                                                            Cancel order
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {order.status === 'preparing' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleStatusUpdate(order._id, 'completed')}
+                                                            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                                                        >
+                                                            <FaCheck size={12} />
+                                                            Mark completed
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleStatusUpdate(order._id, 'cancelled')}
+                                                            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/16 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/16"
+                                                        >
+                                                            <FaTimes size={12} />
+                                                            Cancel order
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {order.status === 'completed' && (
+                                                    <div className="rounded-2xl border border-emerald-400/16 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-200">
+                                                        Order completed
+                                                    </div>
+                                                )}
+
+                                                {order.status === 'cancelled' && (
+                                                    <div className="rounded-2xl border border-red-400/16 bg-red-500/10 px-4 py-3 text-center text-sm font-semibold text-red-200">
+                                                        Order cancelled
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </section>
+                                    </div>
+                                </div>
+                            </article>
+                        ))}
                     </div>
                 )}
             </div>

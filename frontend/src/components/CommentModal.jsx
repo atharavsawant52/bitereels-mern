@@ -5,24 +5,27 @@ import api from '../api/client';
 const CommentModal = ({ reelId, isOpen, onClose }) => {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
-    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            fetchComments();
-        }
-    }, [isOpen, reelId]);
+        if (!isOpen) return undefined;
 
-    const fetchComments = async () => {
-        try {
-            const response = await api.get(`/api/reels/${reelId}/comments`);
-            if (response.data.success) {
-                setComments(response.data.data);
+        let isCancelled = false;
+
+        (async () => {
+            try {
+                const response = await api.get(`/api/reels/${reelId}/comments`);
+                if (!isCancelled && response.data.success) {
+                    setComments(response.data.data);
+                }
+            } catch (error) {
+                console.error("Error fetching comments", error);
             }
-        } catch (error) {
-            console.error("Error fetching comments", error);
-        }
-    };
+        })();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [isOpen, reelId]);
 
     const handlePostComment = async (e) => {
         e.preventDefault();

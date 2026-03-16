@@ -1,92 +1,119 @@
 import { useState, useEffect } from 'react';
+import { FaTrash, FaBookmark } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { FaTrash, FaEdit } from 'react-icons/fa';
 import api from '../api/client';
+import { formatCurrency, formatDateTime, isRestaurantClosed } from '../utils/formatters';
 
 const MyReels = ({ refreshTrigger }) => {
     const [reels, setReels] = useState([]);
     const { user } = useAuth();
+    const deliveryPaused = Boolean(user?.restaurantDetails?.deliverySettings?.isDeliveryPaused);
+    const restaurantClosed = isRestaurantClosed(user);
 
     useEffect(() => {
         const fetchReels = async () => {
             try {
-                if (user?.token) {
-                     const config = {
-                         headers: { Authorization: `Bearer ${user.token}` }
-                    };
-                    const response = await api.get('/api/reels/restaurant/my-reels', config);
-                    if (response.data.success) {
-                        setReels(response.data.data);
-                    }
+                const response = await api.get('/api/reels/restaurant/my-reels');
+                if (response.data.success) {
+                    setReels(response.data.data);
                 }
             } catch (error) {
-                console.error("Error fetching reels:", error);
+                console.error('Error fetching reels:', error);
             }
         };
 
-        fetchReels();
-    }, [user, refreshTrigger]);
+        if (user?.token) fetchReels();
+    }, [user?.token, refreshTrigger]);
 
-    const handleDelete = async (id) => {
-        if (window.confirm("Are you sure you want to delete this reel?")) {
-            try {
-                const config = {
-                        headers: { Authorization: `Bearer ${user.token}` }
-                };
-                await api.delete(`/api/reels/${id}`, config);
-                setReels(reels.filter(reel => reel._id !== id));
-            } catch (error) {
-                console.error("Error deleting reel:", error);
-                alert("Failed to delete reel");
-            }
+    const handleDelete = async (reelId) => {
+        if (!window.confirm('Delete this reel?')) return;
+
+        try {
+            await api.delete(`/api/reels/${reelId}`);
+            setReels((currentReels) => currentReels.filter((reel) => reel._id !== reelId));
+            toast.success('Reel deleted');
+        } catch (error) {
+            console.error('Error deleting reel:', error);
+            toast.error('Failed to delete reel');
         }
     };
 
     return (
-        <div className="bg-secondary p-6 rounded-xl shadow-lg border border-gray-700 mt-8">
-            <h2 className="text-2xl font-bold mb-6 text-primary border-b border-gray-700 pb-2">My Posted Reels</h2>
-            
+        <section className="rounded-[32px] border border-white/8 bg-slate-950/38 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Reels</p>
+                    <h2 className="mt-2 text-3xl font-black text-white">Your posted reels</h2>
+                </div>
+                {(deliveryPaused || restaurantClosed) && (
+                    <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                        restaurantClosed
+                            ? 'border border-red-400/20 bg-red-500/10 text-red-200'
+                            : 'border border-amber-400/20 bg-amber-500/10 text-amber-200'
+                    }`}>
+                        {restaurantClosed ? 'Restaurant closed for users' : 'Add to cart disabled for users'}
+                    </span>
+                )}
+            </div>
+
             {reels.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">No reels posted yet.</p>
+                <div className="mt-8 rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] px-6 py-20 text-center">
+                    <p className="text-lg font-semibold text-white">No reels posted yet</p>
+                    <p className="mt-2 text-sm text-slate-400">Upload a reel from the dashboard to start attracting orders.</p>
+                </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="mt-8 flex flex-wrap gap-5">
                     {reels.map((reel) => (
-                        <div key={reel._id} className="bg-dark rounded-lg overflow-hidden border border-gray-700 shadow-md group">
-                            <div className="relative aspect-[9/16] bg-black">
-                                <video 
-                                    src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000')}${reel.videoUrl}`} 
-                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition"
+                        <article key={reel._id} className="w-full max-w-[290px] overflow-hidden rounded-[28px] border border-white/8 bg-black/20 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+                            <div className="relative aspect-[9/16] overflow-hidden bg-black">
+                                <video
+                                    src={`${(import.meta.env.VITE_API_URL || 'http://localhost:5000')}${reel.videoUrl}`}
+                                    className="h-full w-full object-cover"
+                                    muted
+                                    playsInline
                                 />
-                                <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-xs text-white">
-                                    {new Date(reel.createdAt).toLocaleDateString()}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
+                                <div className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white">
+                                    {formatDateTime(reel.createdAt)}
                                 </div>
                             </div>
-                            <div className="p-4">
-                                <h3 className="font-bold text-lg truncate">{reel.title}</h3>
-                                <div className="flex justify-between items-center mt-3">
-                                    <span className="text-green-400 font-bold">₹{reel.price}</span>
-                                    <div className="flex gap-2">
-                                        <button className="p-2 bg-blue-600/20 text-blue-500 rounded hover:bg-blue-600/40 transition">
-                                            <FaEdit size={14} />
-                                        </button>
-                                        <button 
-                                            onClick={() => handleDelete(reel._id)}
-                                            className="p-2 bg-red-600/20 text-red-500 rounded hover:bg-red-600/40 transition"
-                                        >
-                                            <FaTrash size={14} />
-                                        </button>
+
+                            <div className="space-y-4 p-5">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-lg font-semibold text-white">{reel.title}</p>
+                                        <p className="mt-1 text-sm text-slate-400">{formatCurrency(reel.price)}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleDelete(reel._id)}
+                                        className="flex h-11 w-11 items-center justify-center rounded-full border border-red-400/10 bg-red-500/10 text-red-300 transition hover:bg-red-500/16"
+                                    >
+                                        <FaTrash size={13} />
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-slate-300">
+                                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Likes</p>
+                                        <p className="mt-2 text-lg font-bold text-white">{reel.likes.length}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-slate-300">
+                                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Comments</p>
+                                        <p className="mt-2 text-lg font-bold text-white">{reel.comments?.length || 0}</p>
                                     </div>
                                 </div>
-                                <div className="mt-2 text-xs text-gray-500 flex justify-between">
-                                    <span>{reel.likes.length} Likes</span>
-                                    <span>{reel.comments?.length || 0} Comments</span>
+
+                                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                                    <FaBookmark className="text-primary" />
+                                    {restaurantClosed ? 'Reel visible, restaurant closed' : deliveryPaused ? 'Reel visible, ordering paused' : 'Reel live for orders'}
                                 </div>
                             </div>
-                        </div>
+                        </article>
                     ))}
                 </div>
             )}
-        </div>
+        </section>
     );
 };
 

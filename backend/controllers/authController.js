@@ -15,6 +15,9 @@ const buildUserResponse = (user, token) => ({
     defaultAddress: user.defaultAddress,
     restaurantDetails: user.restaurantDetails,
     profilePicture: user.profilePicture,
+    followers: user.followers,
+    following: user.following,
+    savedReels: user.savedReels,
     token
 });
 
@@ -59,7 +62,13 @@ const registerUser = asyncHandler(async (req, res) => {
         userData.restaurantDetails = {
             restaurantName: restaurantDetails.restaurantName,
             phone: restaurantDetails.phone,
-            businessAddress: restaurantDetails.businessAddress
+            businessAddress: restaurantDetails.businessAddress,
+            restaurantStatus: 'open',
+            deliverySettings: {
+                isDeliveryPaused: false,
+                updatedAt: null,
+                note: 'Online delivery is active. Customers can add your reels to cart.'
+            }
         };
     }
 

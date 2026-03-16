@@ -81,6 +81,12 @@ const createOrder = asyncHandler(async (req, res) => {
         }
     }
 
+    const restaurant = await User.findById(firstRestaurantId).select('restaurantDetails.deliverySettings restaurantDetails.restaurantStatus');
+    if (restaurant?.restaurantDetails?.restaurantStatus === 'closed' || restaurant?.restaurantDetails?.deliverySettings?.isDeliveryPaused) {
+        res.status(409);
+        throw new Error('Online delivery is currently paused for this restaurant.');
+    }
+
     const amountRupees = (cart.totalPrice || 0) + DELIVERY_FEE;
     const amountPaise = Math.round(amountRupees * 100);
 

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Reel = require('../models/Reel');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FOLLOW / UNFOLLOW
@@ -233,6 +234,70 @@ const setDefaultAddress = async (req, res) => {
     }
 };
 
+// @desc    Save/unsave a reel
+// @route   PUT /api/users/saved-reels/:reelId
+// @access  Private
+const toggleSavedReel = async (req, res) => {
+    try {
+        const [user, reel] = await Promise.all([
+            User.findById(req.user._id),
+            Reel.findById(req.params.reelId)
+        ]);
+
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (!reel) return res.status(404).json({ message: 'Reel not found' });
+
+        const alreadySaved = user.savedReels.some(
+            (savedReelId) => savedReelId.toString() === req.params.reelId
+        );
+
+        if (alreadySaved) {
+            user.savedReels = user.savedReels.filter(
+                (savedReelId) => savedReelId.toString() !== req.params.reelId
+            );
+        } else {
+            user.savedReels.push(reel._id);
+        }
+
+        await user.save();
+
+        res.json({
+            success: true,
+            message: alreadySaved ? 'Reel removed from saved list' : 'Reel saved successfully',
+            data: {
+                saved: !alreadySaved,
+                savedReels: user.savedReels
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get saved reels for the logged-in user
+// @route   GET /api/users/saved-reels
+// @access  Private
+const getSavedReels = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).populate({
+            path: 'savedReels',
+            populate: {
+                path: 'restaurant',
+                select: 'username restaurantDetails profilePicture'
+            }
+        });
+
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        res.json({
+            success: true,
+            data: user.savedReels
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper to build consistent user response
 // ─────────────────────────────────────────────────────────────────────────────
@@ -246,6 +311,9 @@ const buildUserResponse = (user, req) => ({
     defaultAddress: user.defaultAddress,
     profilePicture: user.profilePicture,
     restaurantDetails: user.restaurantDetails,
+    followers: user.followers,
+    following: user.following,
+    savedReels: user.savedReels,
     token: req.headers.authorization?.split(' ')[1]
 });
 
@@ -255,5 +323,7 @@ module.exports = {
     addAddress,
     updateAddress,
     deleteAddress,
-    setDefaultAddress
+    setDefaultAddress,
+    toggleSavedReel,
+    getSavedReels
 };

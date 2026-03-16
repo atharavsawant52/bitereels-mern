@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useState, useEffect, useContext } from 'react';
 import api from '../api/client';
 
@@ -71,9 +72,11 @@ export const AuthProvider = ({ children }) => {
 
     // Update user in context + localStorage (after profile edit)
     const updateUser = (updatedData) => {
-        const merged = { ...user, ...updatedData };
-        setUser(merged);
-        localStorage.setItem('userInfo', JSON.stringify(merged));
+        setUser((currentUser) => {
+            const merged = { ...currentUser, ...updatedData };
+            localStorage.setItem('userInfo', JSON.stringify(merged));
+            return merged;
+        });
     };
 
     const value = {

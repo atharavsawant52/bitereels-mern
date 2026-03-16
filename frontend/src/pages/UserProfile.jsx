@@ -1,394 +1,452 @@
-import { useState, useEffect } from 'react';
-import { FaUser, FaMapMarkerAlt, FaEdit, FaSave, FaTimes, FaPlus, FaTrash, FaCheckCircle, FaBuilding, FaHome, FaMap } from 'react-icons/fa';
+import { useMemo, useState } from 'react';
+import { FaUser, FaMapMarkerAlt, FaPlus, FaTrash, FaCheckCircle, FaBuilding, FaHome, FaMap, FaLocationArrow } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
+import { formatFullAddress } from '../utils/formatters';
+
+const emptyAddressForm = {
+    label: 'Home',
+    fullName: '',
+    phone: '',
+    street: '',
+    landmark: '',
+    area: '',
+    city: '',
+    state: '',
+    country: 'India',
+    postalCode: '',
+    lat: null,
+    lng: null
+};
 
 const UserProfile = () => {
     const { user, updateUser, logout } = useAuth();
-    
-    const [editingProfile, setEditingProfile] = useState(false);
     const [name, setName] = useState(user?.name || user?.username || '');
-    
-    // Address management states
-    const [showAddressForm, setShowAddressForm] = useState(false);
+    const [editingProfile, setEditingProfile] = useState(false);
     const [editingAddressId, setEditingAddressId] = useState(null);
+    const [showAddressForm, setShowAddressForm] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [addressForm, setAddressForm] = useState({
-        label: 'Home',
-        fullName: '',
-        phone: '',
-        street: '',
-        area: '',
-        city: '',
-        state: '',
-        postalCode: '',
-        lat: null,
-        lng: null
+        ...emptyAddressForm,
+        fullName: user?.name || user?.username || ''
     });
 
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (user) {
-            setName(user.name || user.username || '');
-        }
-    }, [user]);
-
-    const handleProfileSave = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            const { data } = await api.put(
-                '/api/users/update',
-                { name },
-                { headers: { Authorization: `Bearer ${user?.token}` } }
-            );
-            updateUser(data);
-            setSuccess('Profile updated!');
-            setEditingProfile(false);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Update failed');
-        } finally {
-            setLoading(false);
-        }
-    };
+    const defaultAddress = useMemo(
+        () => user?.addresses?.find((address) => address._id === user?.defaultAddress),
+        [user?.addresses, user?.defaultAddress]
+    );
 
     const resetAddressForm = () => {
         setAddressForm({
-            label: 'Home',
-            fullName: user?.name || user?.username || '',
-            phone: '',
-            street: '',
-            area: '',
-            city: '',
-            state: '',
-            postalCode: '',
-            lat: null,
-            lng: null
+            ...emptyAddressForm,
+            fullName: user?.name || user?.username || ''
         });
         setEditingAddressId(null);
         setShowAddressForm(false);
     };
 
-    const handleEditAddress = (addr) => {
-        setAddressForm({
-            label: addr.label || 'Home',
-            fullName: addr.fullName || '',
-            phone: addr.phone || '',
-            street: addr.street || '',
-            area: addr.area || '',
-            city: addr.city || '',
-            state: addr.state || '',
-            postalCode: addr.postalCode || '',
-            lat: addr.location?.coordinates?.[1] || null,
-            lng: addr.location?.coordinates?.[0] || null
-        });
-        setEditingAddressId(addr._id);
-        setShowAddressForm(true);
-    };
-
-    const handleAddressSubmit = async (e) => {
-        e.preventDefault();
+    const handleProfileSave = async (event) => {
+        event.preventDefault();
         setLoading(true);
-        setError('');
+
         try {
-            const payload = {
-                ...addressForm,
-                location: addressForm.lat && addressForm.lng ? {
-                    type: 'Point',
-                    coordinates: [addressForm.lng, addressForm.lat]
-                } : undefined
-            };
-
-            let response;
-            if (editingAddressId) {
-                response = await api.put(
-                    `/api/users/address/${editingAddressId}`,
-                    payload,
-                    { headers: { Authorization: `Bearer ${user?.token}` } }
-                );
-            } else {
-                response = await api.post(
-                    '/api/users/address',
-                    payload,
-                    { headers: { Authorization: `Bearer ${user?.token}` } }
-                );
-            }
-
-            updateUser({ 
-                addresses: response.data.addresses, 
-                defaultAddress: response.data.defaultAddress 
-            });
-            setSuccess('Address saved!');
-            resetAddressForm();
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to save address');
+            const { data } = await api.put('/api/users/update', { name });
+            updateUser(data.data);
+            toast.success('Profile updated');
+            setEditingProfile(false);
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Profile update failed');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleDeleteAddress = async (id) => {
-        if (!window.confirm('Delete this address?')) return;
+    const handleAddressSubmit = async (event) => {
+        event.preventDefault();
+        setLoading(true);
+
+        const payload = {
+            label: addressForm.label,
+            fullName: addressForm.fullName,
+            phone: addressForm.phone,
+            street: addressForm.street,
+            landmark: addressForm.landmark,
+            area: addressForm.area,
+            city: addressForm.city,
+            state: addressForm.state,
+            country: addressForm.country,
+            postalCode: addressForm.postalCode,
+            location: addressForm.lat && addressForm.lng
+                ? {
+                    type: 'Point',
+                    coordinates: [addressForm.lng, addressForm.lat]
+                }
+                : undefined
+        };
+
         try {
-            const { data } = await api.delete(
-                `/api/users/address/${id}`,
-                { headers: { Authorization: `Bearer ${user?.token}` } }
-            );
-            updateUser({ 
-                addresses: data.addresses, 
-                defaultAddress: data.defaultAddress 
+            const response = editingAddressId
+                ? await api.put(`/api/users/address/${editingAddressId}`, payload)
+                : await api.post('/api/users/address', payload);
+
+            updateUser({
+                addresses: response.data.data.addresses,
+                defaultAddress: response.data.data.defaultAddress
             });
-            setSuccess('Address removed');
-        } catch (err) {
-            setError('Delete failed');
+            toast.success(editingAddressId ? 'Address updated' : 'Address saved');
+            resetAddressForm();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to save address');
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleSetDefault = async (id) => {
+    const handleEditAddress = (address) => {
+        setAddressForm({
+            label: address.label || 'Home',
+            fullName: address.fullName || '',
+            phone: address.phone || '',
+            street: address.street || '',
+            landmark: address.landmark || '',
+            area: address.area || '',
+            city: address.city || '',
+            state: address.state || '',
+            country: address.country || 'India',
+            postalCode: address.postalCode || '',
+            lat: address.location?.coordinates?.[1] || null,
+            lng: address.location?.coordinates?.[0] || null
+        });
+        setEditingAddressId(address._id);
+        setShowAddressForm(true);
+    };
+
+    const handleDeleteAddress = async (addressId) => {
+        setLoading(true);
         try {
-            const { data } = await api.patch(
-                `/api/users/address/default/${id}`,
-                {},
-                { headers: { Authorization: `Bearer ${user?.token}` } }
-            );
-            updateUser({ defaultAddress: data.defaultAddress });
-            setSuccess('Default address changed');
-        } catch (err) {
-            setError('Failed to set default');
+            const { data } = await api.delete(`/api/users/address/${addressId}`);
+            updateUser({
+                addresses: data.data.addresses,
+                defaultAddress: data.data.defaultAddress
+            });
+            toast.success('Address deleted');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Delete failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSetDefault = async (addressId) => {
+        try {
+            const { data } = await api.patch(`/api/users/address/default/${addressId}`, {});
+            updateUser({ defaultAddress: data.data.defaultAddress });
+            toast.success('Default address updated');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to set default address');
         }
     };
 
     const getCoords = () => {
-        navigator.geolocation.getCurrentPosition((pos) => {
-            setAddressForm(prev => ({ ...prev, lat: pos.coords.latitude, lng: pos.coords.longitude }));
-        });
+        if (!navigator.geolocation) {
+            toast.error('Geolocation is not supported on this device');
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setAddressForm((currentValue) => ({
+                    ...currentValue,
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                }));
+                toast.success('Current coordinates attached');
+            },
+            () => toast.error('Unable to fetch current location')
+        );
     };
 
     return (
-        <div className="min-h-screen bg-black text-white pb-32 pt-6 px-4">
-            <div className="max-w-2xl mx-auto space-y-8">
-                
-                {/* Header */}
-                <div className="flex flex-col items-center">
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-primary to-orange-500 p-1 mb-4 shadow-xl shadow-primary/20">
-                        <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
-                            {user?.profilePicture ? (
-                                <img src={user.profilePicture} alt="Profile" className="w-full h-full object-cover" />
-                            ) : (
-                                <FaUser size={40} className="text-primary" />
-                            )}
+        <div className="min-h-[calc(100vh-24px)] px-4 py-6 pb-28 md:px-6 md:py-8">
+            <div className="mx-auto max-w-4xl space-y-8">
+                <section className="overflow-hidden rounded-[32px] border border-white/8 bg-[linear-gradient(135deg,rgba(251,93,71,0.18),rgba(15,23,42,0.5),rgba(2,6,23,0.9))] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:p-8">
+                    <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="flex h-20 w-20 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                                <FaUser size={28} className="text-primary" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold uppercase tracking-[0.32em] text-primary">Profile</p>
+                                <h1 className="mt-2 text-[2.35rem] font-black tracking-tight text-white">{user?.name || user?.username}</h1>
+                                <p className="mt-2 text-sm text-slate-300">{user?.email}</p>
+                            </div>
+                        </div>
+
+                        <div className="rounded-[24px] border border-white/8 bg-black/20 px-4 py-4 backdrop-blur-xl">
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Default Address</p>
+                            <p className="mt-2 text-sm font-semibold text-white">{defaultAddress ? defaultAddress.label : 'Required for orders'}</p>
+                            <p className="mt-1 text-sm text-slate-400">{defaultAddress ? formatFullAddress(defaultAddress) : 'Please add one to unlock ordering.'}</p>
                         </div>
                     </div>
-                    <h1 className="text-3xl font-heading font-black text-white tracking-tight">{user?.name || user?.username}</h1>
-                    <p className="text-gray-500 font-medium">{user?.email}</p>
-                    <div className="mt-3 px-4 py-1 rounded-full bg-gray-900 border border-gray-800 text-xs font-bold uppercase tracking-widest text-primary">
-                        {user?.role}
-                    </div>
-                </div>
+                </section>
 
-                {success && <div className="bg-green-500/10 border border-green-500/50 text-green-500 p-4 rounded-2xl text-center text-sm font-bold animate-pulse">{success}</div>}
-                {error && <div className="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-2xl text-center text-sm font-bold">{error}</div>}
-
-                {/* Profile Section */}
-                <section className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-lg font-bold flex items-center gap-2">
-                            <FaUser className="text-gray-500" /> Account Settings
-                        </h2>
+                <section className="rounded-[30px] border border-white/8 bg-slate-950/38 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Account</p>
+                            <h2 className="mt-2 text-[1.85rem] font-bold text-white">Display details</h2>
+                        </div>
                         {!editingProfile && (
-                            <button onClick={() => setEditingProfile(true)} className="text-primary text-sm font-bold hover:text-white transition">Edit</button>
+                            <button
+                                onClick={() => setEditingProfile(true)}
+                                className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-primary/30 hover:bg-primary/10"
+                            >
+                                Edit profile
+                            </button>
                         )}
                     </div>
 
                     {editingProfile ? (
-                        <form onSubmit={handleProfileSave} className="space-y-4">
-                            <div>
-                                <label className="block text-gray-500 text-xs font-bold uppercase mb-1 ml-1">Full Name</label>
-                                <input 
-                                    type="text" 
-                                    value={name} 
-                                    onChange={(e) => setName(e.target.value)}
-                                    className="w-full bg-black border border-gray-800 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition"
-                                />
-                            </div>
+                        <form onSubmit={handleProfileSave} className="mt-6 grid gap-4 md:grid-cols-[1fr_auto]">
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(event) => setName(event.target.value)}
+                                className="h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none transition placeholder:text-slate-500 focus:border-primary/40"
+                                placeholder="Full name"
+                            />
                             <div className="flex gap-3">
-                                <button type="submit" className="flex-1 bg-primary py-3 rounded-xl font-bold hover:bg-orange-600 transition shadow-lg shadow-primary/20">Save Profile</button>
-                                <button type="button" onClick={() => setEditingProfile(false)} className="px-6 bg-gray-800 rounded-xl font-bold">Cancel</button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setEditingProfile(false);
+                                        setName(user?.name || user?.username || '');
+                                    }}
+                                    className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:text-white"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#ff6d59] disabled:opacity-60"
+                                >
+                                    Save
+                                </button>
                             </div>
                         </form>
                     ) : (
-                        <div className="space-y-2">
-                            <p className="text-gray-500 text-sm">Display Name: <span className="text-white font-medium ml-2">{user?.name || user?.username}</span></p>
+                        <div className="mt-6 grid gap-4 md:grid-cols-2">
+                            <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+                                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Full Name</p>
+                                <p className="mt-2 text-lg font-semibold text-white">{user?.name || user?.username}</p>
+                            </div>
+                            <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+                                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Role</p>
+                                <p className="mt-2 text-lg font-semibold capitalize text-white">{user?.role}</p>
+                            </div>
                         </div>
                     )}
                 </section>
 
-                {/* Address Manager Section */}
-                <section className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-lg font-bold flex items-center gap-2">
-                            <FaMapMarkerAlt className="text-gray-500" /> Saved Addresses
-                        </h2>
+                <section className="rounded-[30px] border border-white/8 bg-slate-950/38 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Addresses</p>
+                            <h2 className="mt-2 text-[1.85rem] font-bold text-white">Manage delivery addresses</h2>
+                        </div>
                         {!showAddressForm && (
-                            <button 
-                                onClick={() => { resetAddressForm(); setShowAddressForm(true); }}
-                                className="bg-primary/10 text-primary p-2 rounded-xl border border-primary/20 hover:bg-primary hover:text-white transition"
+                            <button
+                                onClick={() => setShowAddressForm(true)}
+                                className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#ff6d59]"
                             >
-                                <FaPlus size={16} />
+                                <FaPlus size={12} />
+                                Add address
                             </button>
                         )}
                     </div>
 
-                    {showAddressForm ? (
-                        <form onSubmit={handleAddressSubmit} className="space-y-4 animate-fadeIn">
-                            <div className="grid grid-cols-3 gap-2">
-                                {['Home', 'Work', 'Other'].map(l => (
-                                    <button 
-                                        key={l}
+                    {showAddressForm && (
+                        <form onSubmit={handleAddressSubmit} className="mt-6 space-y-4 rounded-[24px] border border-white/8 bg-black/20 p-5">
+                            <div className="grid gap-3 sm:grid-cols-3">
+                                {['Home', 'Work', 'Other'].map((label) => (
+                                    <button
+                                        key={label}
                                         type="button"
-                                        onClick={() => setAddressForm(prev => ({ ...prev, label: l }))}
-                                        className={`py-2 rounded-xl text-xs font-bold border transition ${addressForm.label === l ? 'bg-primary border-primary text-white' : 'bg-black border-gray-800 text-gray-500'}`}
+                                        onClick={() => setAddressForm((currentValue) => ({ ...currentValue, label }))}
+                                        className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                                            addressForm.label === label
+                                                ? 'border-primary/30 bg-primary/15 text-primary'
+                                                : 'border-white/10 bg-white/[0.04] text-slate-300'
+                                        }`}
                                     >
-                                        {l === 'Home' && <FaHome className="inline mr-1" />}
-                                        {l === 'Work' && <FaBuilding className="inline mr-1" />}
-                                        {l === 'Other' && <FaMap className="inline mr-1" />}
-                                        {l}
+                                        {label === 'Home' && <FaHome className="mr-2 inline" />}
+                                        {label === 'Work' && <FaBuilding className="mr-2 inline" />}
+                                        {label === 'Other' && <FaMap className="mr-2 inline" />}
+                                        {label}
                                     </button>
                                 ))}
                             </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input 
-                                    placeholder="Receiver Name" 
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <input
+                                    required
+                                    placeholder="Receiver name"
                                     value={addressForm.fullName}
-                                    onChange={e => setAddressForm(prev => ({ ...prev, fullName: e.target.value }))}
-                                    className="bg-black border border-gray-800 p-3 rounded-xl outline-none focus:border-primary text-sm"
-                                    required
+                                    onChange={(event) => setAddressForm((currentValue) => ({ ...currentValue, fullName: event.target.value }))}
+                                    className="h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none focus:border-primary/40"
                                 />
-                                <input 
-                                    placeholder="Phone Number" 
+                                <input
+                                    required
+                                    placeholder="Phone number"
                                     value={addressForm.phone}
-                                    onChange={e => setAddressForm(prev => ({ ...prev, phone: e.target.value }))}
-                                    className="bg-black border border-gray-800 p-3 rounded-xl outline-none focus:border-primary text-sm"
-                                    required
+                                    onChange={(event) => setAddressForm((currentValue) => ({ ...currentValue, phone: event.target.value }))}
+                                    className="h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none focus:border-primary/40"
                                 />
                             </div>
 
-                            <input 
-                                placeholder="Street / House No. / Flat" 
-                                value={addressForm.street}
-                                onChange={e => setAddressForm(prev => ({ ...prev, street: e.target.value }))}
-                                className="w-full bg-black border border-gray-800 p-3 rounded-xl outline-none focus:border-primary text-sm"
+                            <input
                                 required
+                                placeholder="Street / House / Flat"
+                                value={addressForm.street}
+                                onChange={(event) => setAddressForm((currentValue) => ({ ...currentValue, street: event.target.value }))}
+                                className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none focus:border-primary/40"
                             />
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                <input 
-                                    placeholder="Area / Landmark" 
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <input
+                                    placeholder="Landmark"
+                                    value={addressForm.landmark}
+                                    onChange={(event) => setAddressForm((currentValue) => ({ ...currentValue, landmark: event.target.value }))}
+                                    className="h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none focus:border-primary/40"
+                                />
+                                <input
+                                    placeholder="Area"
                                     value={addressForm.area}
-                                    onChange={e => setAddressForm(prev => ({ ...prev, area: e.target.value }))}
-                                    className="bg-black border border-gray-800 p-3 rounded-xl outline-none focus:border-primary text-sm"
+                                    onChange={(event) => setAddressForm((currentValue) => ({ ...currentValue, area: event.target.value }))}
+                                    className="h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none focus:border-primary/40"
                                 />
-                                <input 
-                                    placeholder="City" 
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <input
+                                    required
+                                    placeholder="City"
                                     value={addressForm.city}
-                                    onChange={e => setAddressForm(prev => ({ ...prev, city: e.target.value }))}
-                                    className="bg-black border border-gray-800 p-3 rounded-xl outline-none focus:border-primary text-sm"
-                                    required
+                                    onChange={(event) => setAddressForm((currentValue) => ({ ...currentValue, city: event.target.value }))}
+                                    className="h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none focus:border-primary/40"
                                 />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <input 
-                                    placeholder="State" 
+                                <input
+                                    required
+                                    placeholder="State"
                                     value={addressForm.state}
-                                    onChange={e => setAddressForm(prev => ({ ...prev, state: e.target.value }))}
-                                    className="bg-black border border-gray-800 p-3 rounded-xl outline-none focus:border-primary text-sm"
-                                    required
+                                    onChange={(event) => setAddressForm((currentValue) => ({ ...currentValue, state: event.target.value }))}
+                                    className="h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none focus:border-primary/40"
                                 />
-                                <input 
-                                    placeholder="Pincode" 
-                                    value={addressForm.postalCode}
-                                    onChange={e => setAddressForm(prev => ({ ...prev, postalCode: e.target.value }))}
-                                    className="bg-black border border-gray-800 p-3 rounded-xl outline-none focus:border-primary text-sm"
+                                <input
                                     required
+                                    placeholder="Pincode"
+                                    value={addressForm.postalCode}
+                                    onChange={(event) => setAddressForm((currentValue) => ({ ...currentValue, postalCode: event.target.value }))}
+                                    className="h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white outline-none focus:border-primary/40"
                                 />
                             </div>
 
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={getCoords}
-                                className="w-full py-2 border border-dashed border-gray-700 rounded-xl text-xs font-bold text-gray-500 hover:text-primary hover:border-primary transition"
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/12 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-primary/30 hover:text-white"
                             >
-                                {addressForm.lat ? `Location Fixed (${addressForm.lat.toFixed(4)}, ${addressForm.lng.toFixed(4)})` : 'Attach Current Coordinates (Optional)'}
+                                <FaLocationArrow size={12} />
+                                {addressForm.lat ? `Coordinates attached (${addressForm.lat.toFixed(4)}, ${addressForm.lng.toFixed(4)})` : 'Attach current coordinates (optional)'}
                             </button>
 
-                            <div className="flex gap-3">
-                                <button type="submit" className="flex-1 bg-white text-black py-3 rounded-xl font-bold hover:bg-primary hover:text-white transition">
-                                    {editingAddressId ? 'Update Address' : 'Save Address'}
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={resetAddressForm}
+                                    className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:text-white"
+                                >
+                                    Cancel
                                 </button>
-                                <button type="button" onClick={resetAddressForm} className="px-6 bg-gray-800 rounded-xl font-bold">Cancel</button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#ff6d59] disabled:opacity-60"
+                                >
+                                    {editingAddressId ? 'Update address' : 'Save address'}
+                                </button>
                             </div>
                         </form>
-                    ) : (
-                        <div className="space-y-4">
-                            {user?.addresses?.length === 0 ? (
-                                <div className="text-center py-8">
-                                    <FaMapMarkerAlt size={32} className="mx-auto text-gray-800 mb-2" />
-                                    <p className="text-gray-600 text-sm">No addresses saved yet</p>
-                                    <button onClick={() => setShowAddressForm(true)} className="mt-4 text-primary text-sm font-bold">Add your first address</button>
-                                </div>
-                            ) : (
-                                user?.addresses?.map((addr) => (
-                                    <div key={addr._id} className={`group bg-black/40 border p-4 rounded-2xl relative transition-all ${user.defaultAddress === addr._id ? 'border-primary/50 ring-1 ring-primary/20' : 'border-gray-800 hover:border-gray-700'}`}>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <div className="bg-gray-800 p-1.5 rounded-lg text-primary">
-                                                    {addr.label === 'Home' && <FaHome size={12} />}
-                                                    {addr.label === 'Work' && <FaBuilding size={12} />}
-                                                    {addr.label === 'Other' && <FaMap size={12} />}
-                                                </div>
-                                                <h3 className="font-bold text-sm text-white uppercase tracking-wider">{addr.label}</h3>
-                                                {user.defaultAddress === addr._id && (
-                                                    <span className="bg-primary/20 text-primary text-[10px] font-black px-2 py-0.5 rounded-full border border-primary/30 uppercase">Default</span>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                                                <button onClick={() => handleEditAddress(addr)} className="p-2 text-gray-500 hover:text-white"><FaEdit size={14} /></button>
-                                                <button onClick={() => handleDeleteAddress(addr._id)} className="p-2 text-gray-500 hover:text-red-500"><FaTrash size={14} /></button>
-                                            </div>
-                                        </div>
-                                        <p className="text-white text-sm font-bold mb-1">{addr.fullName}</p>
-                                        <p className="text-gray-400 text-xs leading-relaxed max-w-[80%]">
-                                            {addr.street}, {addr.area && `${addr.area}, `}
-                                            {addr.city}, {addr.state} - {addr.postalCode}
-                                        </p>
-                                        <p className="text-gray-500 text-[10px] mt-2 font-medium">{addr.phone}</p>
-                                        
-                                        {user.defaultAddress !== addr._id && (
-                                            <button 
-                                                onClick={() => handleSetDefault(addr._id)}
-                                                className="mt-4 w-full py-2 bg-gray-900 border border-gray-800 rounded-xl text-[10px] font-black uppercase text-gray-500 hover:bg-primary hover:text-white hover:border-primary transition"
-                                            >
-                                                Set as Delivery Address
-                                            </button>
-                                        )}
-                                    </div>
-                                ))
-                            )}
-                        </div>
                     )}
+
+                    <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                        {user?.addresses?.length ? (
+                            user.addresses.map((address) => {
+                                const isDefault = user.defaultAddress === address._id;
+
+                                return (
+                                    <article key={address._id} className={`rounded-[24px] border p-5 ${isDefault ? 'border-primary/20 bg-primary/[0.08]' : 'border-white/8 bg-white/[0.03]'}`}>
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-3">
+                                                    <p className="text-lg font-semibold text-white">{address.fullName}</p>
+                                                    {isDefault && (
+                                                        <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                                                            Default
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="mt-2 text-sm font-medium text-slate-300">{address.label}</p>
+                                                <p className="mt-3 text-sm leading-7 text-slate-400">{formatFullAddress(address)}</p>
+                                                <p className="mt-2 text-sm text-slate-500">{address.phone}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteAddress(address._id)}
+                                                className="flex h-11 w-11 items-center justify-center rounded-full border border-red-400/10 bg-red-500/10 text-red-300 transition hover:bg-red-500/16"
+                                            >
+                                                <FaTrash size={13} />
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-5 flex flex-wrap gap-3">
+                                            <button
+                                                onClick={() => handleEditAddress(address)}
+                                                className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-primary/30 hover:bg-primary/10"
+                                            >
+                                                Edit
+                                            </button>
+                                            {!isDefault && (
+                                                <button
+                                                    onClick={() => handleSetDefault(address._id)}
+                                                    className="rounded-2xl border border-emerald-400/16 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/16"
+                                                >
+                                                    <FaCheckCircle className="mr-2 inline" />
+                                                    Set as default
+                                                </button>
+                                            )}
+                                        </div>
+                                    </article>
+                                );
+                            })
+                        ) : (
+                            <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] px-6 py-16 text-center lg:col-span-2">
+                                <FaMapMarkerAlt className="mx-auto text-slate-500" size={24} />
+                                <h3 className="mt-4 text-xl font-bold text-white">No addresses saved yet</h3>
+                                <p className="mt-2 text-sm leading-7 text-slate-400">
+                                    Add a delivery address here. Orders stay blocked until a default address is saved.
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </section>
 
-                {/* Logout */}
-                <button 
+                <button
                     onClick={logout}
-                    className="w-full py-4 rounded-3xl bg-red-500/10 border border-red-500/20 text-red-500 font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition shadow-lg shadow-red-500/10"
+                    className="rounded-[24px] border border-red-400/16 bg-red-500/10 px-6 py-4 text-sm font-semibold text-red-200 transition hover:bg-red-500/16"
                 >
-                    Sign Out Account
+                    Sign out
                 </button>
             </div>
         </div>

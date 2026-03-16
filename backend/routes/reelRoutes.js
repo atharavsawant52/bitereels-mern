@@ -10,7 +10,9 @@ const {
     getComments,
     getRestaurantReels,
     deleteReel,
-    searchReels
+    searchReels,
+    toggleSaveReel,
+    getSavedReels
 } = require('../controllers/reelController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -50,11 +52,13 @@ router.route('/')
 // Must be before /:id to avoid param collision
 router.route('/search').get(searchReels);
 router.route('/restaurant/my-reels').get(protect, getRestaurantReels);
+router.route('/saved').get(protect, getSavedReels);
 
 router.route('/:id')
     .delete(protect, deleteReel);
 
 router.route('/:id/like').put(protect, likeReel);
+router.route('/:id/save').put(protect, toggleSaveReel);
 router.route('/:id/comments').get(getComments).post(protect, addComment);
 
 module.exports = router;

@@ -2,6 +2,7 @@ const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
 const Reel = require('../models/Reel');
 const Order = require('../models/Order');
+const { createNotification } = require('./notificationController');
 
 // @desc    Get all restaurants
 // @route   GET /api/restaurants
@@ -77,7 +78,77 @@ const updateRestaurantProfile = asyncHandler(async (req, res) => {
             email: updatedUser.email,
             role: updatedUser.role,
             restaurantDetails: updatedUser.restaurantDetails,
-            profilePicture: updatedUser.profilePicture
+            profilePicture: updatedUser.profilePicture,
+            followers: updatedUser.followers,
+            following: updatedUser.following,
+            savedReels: updatedUser.savedReels
+        }
+    });
+});
+
+// @desc    Toggle restaurant online delivery pause state
+// @route   PATCH /api/restaurants/delivery-settings
+// @access  Private (Restaurant)
+const updateDeliverySettings = asyncHandler(async (req, res) => {
+    if (req.user.role !== 'restaurant') {
+        res.status(403);
+        throw new Error('Not authorized');
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+        res.status(404);
+        throw new Error('Restaurant not found');
+    }
+
+    const { isDeliveryPaused, note, restaurantStatus } = req.body;
+
+    user.restaurantDetails = user.restaurantDetails || {};
+    const nextRestaurantStatus = ['open', 'closed'].includes(restaurantStatus)
+        ? restaurantStatus
+        : (user.restaurantDetails.restaurantStatus || 'open');
+
+    user.restaurantDetails.deliverySettings = {
+        isDeliveryPaused: typeof isDeliveryPaused === 'boolean'
+            ? isDeliveryPaused
+            : Boolean(user.restaurantDetails.deliverySettings?.isDeliveryPaused),
+        updatedAt: new Date(),
+        note: note?.trim() || (
+            nextRestaurantStatus === 'closed'
+                ? 'Restaurant closed. Customers cannot add your reels to cart right now.'
+                : (typeof isDeliveryPaused === 'boolean' ? isDeliveryPaused : user.restaurantDetails.deliverySettings?.isDeliveryPaused)
+                    ? 'Online delivery paused. Customers cannot add your reels to cart right now.'
+                    : 'Restaurant open and online delivery active. Customers can order from your reels again.'
+        )
+    };
+    user.restaurantDetails.restaurantStatus = nextRestaurantStatus;
+
+    const updatedUser = await user.save();
+
+    try {
+        await createNotification(
+            updatedUser._id,
+            'delivery_mode_updated',
+            updatedUser.restaurantDetails.deliverySettings.note
+        );
+    } catch (error) {
+    }
+
+    res.json({
+        success: true,
+        message: updatedUser.restaurantDetails.deliverySettings.note,
+        data: {
+            _id: updatedUser._id,
+            username: updatedUser.username,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            role: updatedUser.role,
+            restaurantDetails: updatedUser.restaurantDetails,
+            profilePicture: updatedUser.profilePicture,
+            followers: updatedUser.followers,
+            following: updatedUser.following,
+            savedReels: updatedUser.savedReels
         }
     });
 });
@@ -119,5 +190,6 @@ module.exports = {
     getRestaurants,
     getRestaurantById,
     updateRestaurantProfile,
-    getDashboardStats
+    getDashboardStats,
+    updateDeliverySettings
 };

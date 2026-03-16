@@ -1,15 +1,12 @@
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import ReelFeed from '../components/ReelFeed';
 
 const Home = () => {
-    const { user, logout } = useAuth();
-
     return (
-        <>
-            {/* Reel Feed */}
-            <ReelFeed />
-        </>
+        <div className="flex h-[100dvh] w-full justify-center overflow-hidden px-0">
+            <div className="h-full w-full max-w-full">
+                <ReelFeed />
+            </div>
+        </div>
     );
 };
 

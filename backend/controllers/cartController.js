@@ -1,12 +1,14 @@
 const asyncHandler = require('express-async-handler');
 const Cart = require('../models/Cart');
 const FoodItem = require('../models/FoodItem');
+const User = require('../models/User');
 
 // @desc    Get user cart
 // @route   GET /api/cart
 // @access  Private
 const getCart = asyncHandler(async (req, res) => {
     let cart = await Cart.findOne({ user: req.user._id })
+        .populate('items.restaurant', 'username restaurantDetails profilePicture')
         .populate({
             path: 'items.foodItem',
             populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
@@ -62,6 +64,18 @@ const addToCart = async (req, res, next) => {
             itemRef = { reel: reelId };
         }
 
+        if (restaurantId) {
+            const restaurant = await User.findById(restaurantId).select('restaurantDetails.deliverySettings restaurantDetails.restaurantStatus');
+            if (restaurant?.restaurantDetails?.restaurantStatus === 'closed') {
+                res.status(409);
+                return next(new Error('Online delivery is currently paused for this restaurant.'));
+            }
+            if (restaurant?.restaurantDetails?.deliverySettings?.isDeliveryPaused) {
+                res.status(409);
+                return next(new Error('This restaurant has paused online delivery. Add to cart is temporarily unavailable.'));
+            }
+        }
+
         let cart = await Cart.findOne({ user: req.user._id });
 
         if (!cart) {
@@ -91,10 +105,16 @@ const addToCart = async (req, res, next) => {
         await cart.save();
         
         // Repopulate to return full object
-        const updatedCart = await Cart.findById(cart._id).populate({
-            path: 'items.foodItem',
-            populate: { path: 'restaurant' }
-        });
+        const updatedCart = await Cart.findById(cart._id)
+            .populate('items.restaurant', 'username restaurantDetails profilePicture')
+            .populate({
+                path: 'items.foodItem',
+                populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
+            })
+            .populate({
+                path: 'items.reel',
+                populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
+            });
         
         // Final check before return: ensure all items have restaurant field if populated from Reel/FoodItem
         // This handles older items that were in the cart but lacked the field
@@ -170,6 +190,7 @@ const updateCartItem = asyncHandler(async (req, res) => {
     await cart.save();
 
     const updatedCart = await Cart.findById(cart._id)
+        .populate('items.restaurant', 'username restaurantDetails profilePicture')
         .populate({
             path: 'items.foodItem',
             populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
@@ -201,6 +222,7 @@ const removeCartItem = asyncHandler(async (req, res) => {
     await cart.save();
 
     const updatedCart = await Cart.findById(cart._id)
+        .populate('items.restaurant', 'username restaurantDetails profilePicture')
         .populate({
             path: 'items.foodItem',
             populate: { path: 'restaurant', select: 'username restaurantDetails profilePicture' }
